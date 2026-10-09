@@ -63,6 +63,16 @@
       .slot label { font-size: 11px; color: var(--muted); }
       .slot.is-hidden-slot { opacity: 0.3; pointer-events: none; }
       .source-power.is-off { background: var(--off); border-radius: 6px; padding: 1px; }
+      .source-power {
+        display: inline-flex;
+        align-items: center;
+        gap: 2px;
+      }
+      .source-power .open-link {
+        padding: 5px 6px;
+        min-width: 28px;
+        opacity: 0.9;
+      }
       select {
         border: 1px solid var(--border);
         background: #111a3d;
@@ -94,17 +104,48 @@
       }
       .spacer { flex: 1; }
       .slots-wrap { max-height: 120px; overflow: auto; }
+      .live-links-wrap { flex-wrap: wrap; gap: 4px; }
+      .live-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 2px;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 2px;
+        background: #111a3d;
+      }
+      .live-chip span {
+        font-size: 10px;
+        color: var(--muted);
+        padding: 0 4px;
+        max-width: 88px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .live-chip button { padding: 3px 6px; min-width: 0; font-size: 10px; }
+      .live-chip.onair {
+        border-color: rgba(248, 113, 113, 0.55);
+        background: #2a1520;
+      }
+      .live-chip.onair span { color: #fca5a5; }
     </style>
   </head>
   <body>
     <div class="toolbar" id="toolbar">
       <div class="row">
         <div class="brand">
-          <div class="title">AnimeBeat Live Hub</div>
-          <div class="hint">Ctrl+1..9 / Ctrl+0=10 · Ctrl+S Command · Ctrl+C chat · Ctrl+F</div>
+          <div class="title">AnimeBeat Live Hub <span id="appVersion" style="color:#14b8ff"></span></div>
+          <div class="hint" id="appHint">Ctrl+1..9 · Alt+←/→ retour/avant · F5 actualiser · clic droit sur la page</div>
         </div>
         <div class="group" id="screenButtons">
           <span class="label">Écrans</span>
+        </div>
+        <div class="group">
+          <span class="label">Page</span>
+          <button type="button" id="btnNavBack" title="Retour (Alt+←)">←</button>
+          <button type="button" id="btnNavForward" title="Avant (Alt+→)">→</button>
+          <button type="button" id="btnNavReload" title="Actualiser (F5)">↻</button>
         </div>
         <div class="spacer"></div>
         <div class="group">
@@ -125,6 +166,17 @@
       <div class="row">
         <div class="group" id="sourcePowers">
           <span class="label">Sources</span>
+        </div>
+        <div class="group">
+          <span class="label">Liens</span>
+          <button type="button" id="btnOpenLinksAll" title="Ouvre tous les liens des sources ON">Ouvrir tous</button>
+          <button type="button" id="btnOpenLinksOneByOne" title="Ouvre les liens un par un (sources ON)">Un par un</button>
+          <button type="button" id="btnCopyAllLinks" title="Copie tous les liens live">Copier tous</button>
+        </div>
+      </div>
+      <div class="row">
+        <div class="group live-links-wrap" id="liveLinksBar" style="flex:1;max-height:72px;overflow:auto">
+          <span class="label">URLs live</span>
         </div>
       </div>
       <div class="row">
@@ -200,7 +252,17 @@
             window.liveHub.setSourcePower(src.id, !on);
             updatePowerButton(btn, !on);
           });
+          const openBtn = document.createElement("button");
+          openBtn.className = "open-link";
+          openBtn.type = "button";
+          openBtn.textContent = "↗";
+          openBtn.title = `Ouvrir le lien ${src.title}`;
+          openBtn.addEventListener("click", async (e) => {
+            e.stopPropagation();
+            await window.liveHub.openSourceLink(src.id);
+          });
           wrap.appendChild(btn);
+          wrap.appendChild(openBtn);
           powers.appendChild(wrap);
         });
 
@@ -216,6 +278,8 @@
             <button data-slot-mode="live" data-slot-index="${i}">Live</button>
             <button data-slot-mode="live-fs" data-slot-index="${i}">FS</button>
             <button data-slot-mode="site" data-slot-index="${i}">Site</button>
+            <button type="button" data-slot-nav="back" data-slot-index="${i}" title="Retour">←</button>
+            <button type="button" data-slot-nav="reload" data-slot-index="${i}" title="Actualiser">↻</button>
           `;
           const select = slot.querySelector("select");
           const defaultId = catalog.powerSources[i % catalog.powerSources.length]?.id;
@@ -226,6 +290,11 @@
           slot.querySelectorAll("[data-slot-mode]").forEach((btn) => {
             btn.addEventListener("click", () => {
               window.liveHub.setSlotMode(i, btn.getAttribute("data-slot-mode"));
+            });
+          });
+          slot.querySelectorAll("[data-slot-nav]").forEach((btn) => {
+            btn.addEventListener("click", () => {
+              window.liveHub.nav(btn.getAttribute("data-slot-nav"), i);
             });
           });
           slots.appendChild(slot);
@@ -255,12 +324,114 @@
         window.liveHub.openCommandCenter();
       });
 
+      document.getElementById("btnNavBack").addEventListener("click", () => window.liveHub.nav("back"));
+      document.getElementById("btnNavForward").addEventListener("click", () => window.liveHub.nav("forward"));
+      document.getElementById("btnNavReload").addEventListener("click", () => window.liveHub.nav("reload"));
+
+      document.getElementById("btnOpenLinksAll").addEventListener("click", async () => {
+        const btn = document.getElementById("btnOpenLinksAll");
+        btn.disabled = true;
+        try {
+          // Tous d’un coup (délai court pour éviter le blocage navigateur)
+          await window.liveHub.openSourceLinks({ sequential: true, delayMs: 350, onlyPowered: true });
+        } finally {
+          btn.disabled = false;
+        }
+      });
+
+      document.getElementById("btnOpenLinksOneByOne").addEventListener("click", async () => {
+        const btn = document.getElementById("btnOpenLinksOneByOne");
+        btn.disabled = true;
+        try {
+          await window.liveHub.openSourceLinks({ sequential: true, delayMs: 1200, onlyPowered: true });
+        } finally {
+          btn.disabled = false;
+        }
+      });
+
       const ro = new ResizeObserver(() => reportToolbarHeight());
       ro.observe(document.getElementById("toolbar"));
 
+      async function renderLiveLinksBar() {
+        const bar = document.getElementById("liveLinksBar");
+        if (!bar || !window.liveHub?.getLiveLinks) return;
+        bar.querySelectorAll(".live-chip").forEach((n) => n.remove());
+        const links = await window.liveHub.getLiveLinks();
+        (links || []).forEach((link) => {
+          if (!link?.url) return;
+          const chip = document.createElement("div");
+          chip.className = `live-chip${link.isOnAir ? " onair" : ""}`;
+          chip.title = link.url;
+          const name = document.createElement("span");
+          name.textContent = link.title || link.id;
+          const openBtn = document.createElement("button");
+          openBtn.type = "button";
+          openBtn.textContent = "↗";
+          openBtn.title = `Ouvrir ${link.title}`;
+          openBtn.addEventListener("click", async () => {
+            if (link.openInHub && catalog.sources?.some((s) => s.id === link.id)) {
+              await window.liveHub.openSourceLink(link.id);
+            } else {
+              await window.liveHub.openUrl(link.url);
+            }
+          });
+          const copyBtn = document.createElement("button");
+          copyBtn.type = "button";
+          copyBtn.textContent = "⧉";
+          copyBtn.title = `Copier ${link.url}`;
+          copyBtn.addEventListener("click", async () => {
+            await window.liveHub.copyText(link.url);
+            copyBtn.textContent = "✓";
+            setTimeout(() => {
+              copyBtn.textContent = "⧉";
+            }, 800);
+          });
+          chip.appendChild(name);
+          chip.appendChild(openBtn);
+          chip.appendChild(copyBtn);
+          bar.appendChild(chip);
+        });
+        requestAnimationFrame(reportToolbarHeight);
+      }
+
+      document.getElementById("btnCopyAllLinks")?.addEventListener("click", async () => {
+        const links = await window.liveHub.getLiveLinks();
+        const text = (links || []).map((l) => `${l.title}: ${l.url}`).join("\n");
+        await window.liveHub.copyText(text);
+        const btn = document.getElementById("btnCopyAllLinks");
+        if (btn) {
+          const prev = btn.textContent;
+          btn.textContent = "Copié !";
+          setTimeout(() => {
+            btn.textContent = prev;
+          }, 900);
+        }
+      });
+
       (async () => {
+        try {
+          const info = await window.liveHub.getAppInfo();
+          const ver = info?.version || "?";
+          const ch = info?.channel || "?";
+          const stamp = info?.codeStamp || info?.startedStamp || "";
+          const el = document.getElementById("appVersion");
+          if (el) {
+            el.textContent = stamp
+              ? `v${ver} · ${stamp} · ${ch}`
+              : `v${ver} (${ch})`;
+            el.title = info?.titleStamp || "";
+          }
+          document.title = `AnimeBeat Live Hub ${info?.titleStamp || `v${ver}`}`;
+          const hint = document.getElementById("appHint");
+          if (hint && ch === "installé") {
+            hint.textContent = `Installé v${ver} · ${stamp} — pour le code à jour : lanceur DEV`;
+          }
+        } catch {
+          /* ignore */
+        }
         catalog = await window.liveHub.getCatalog();
         buildUi();
+        await renderLiveLinksBar();
       })();
     </script>
   </body>

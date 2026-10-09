@@ -5,11 +5,15 @@ const LIVE_SOURCES = [
   { id: "kick", title: "Kick", url: "https://kick.com/lilwen54" },
   { id: "twitch", title: "Twitch", url: "https://www.twitch.tv/lilwen54" },
   { id: "youtube", title: "YouTube", url: "https://www.youtube.com/@lilwen54/live" },
-  { id: "facebook", title: "Facebook", url: "https://www.facebook.com/profile.php?id=100036165385264" },
+  {
+    id: "facebook",
+    title: "Facebook PAGE",
+    url: "https://www.facebook.com/profile.php?id=100036165385264",
+  },
   { id: "instagram", title: "Instagram", url: "https://www.instagram.com/" },
   { id: "x", title: "X", url: "https://x.com/" },
   { id: "telegram", title: "Telegram", url: "https://web.telegram.org/k/" },
-  { id: "site", title: "Site", url: "https://animebeat-arena.vercel.app", isSite: true },
+  { id: "site", title: "Site AnimeBeat", url: "https://animebeat-arena.vercel.app", isSite: true },
 ];
 
 /** Viewer slots (E1…E10). Site is selectable per slot; not counted as a power toggle. */

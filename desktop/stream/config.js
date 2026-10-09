@@ -57,8 +57,18 @@ function loadConfig() {
     const obsChanged =
       discovered.obs?.port !== merged.obs?.port ||
       discovered.obs?.password !== merged.obs?.password;
+    const stunnelChanged =
+      Boolean(discovered.appPaths?.stunnel) &&
+      discovered.appPaths.stunnel !== (merged.appPaths?.stunnel || "");
+    const companionsMissing = merged.companions?.autoLaunch === undefined;
     merged = discovered;
-    if (needsWrite || obsChanged || !fs.existsSync(file)) {
+    if (
+      needsWrite ||
+      obsChanged ||
+      stunnelChanged ||
+      companionsMissing ||
+      !fs.existsSync(file)
+    ) {
       fs.writeFileSync(file, JSON.stringify(merged, null, 2), "utf8");
     }
   } catch {

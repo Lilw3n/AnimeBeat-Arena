@@ -11,6 +11,10 @@ let nms = null;
 /** @type {Map<string, import('child_process').ChildProcess>} */
 const relays = new Map();
 let facebookSession = null;
+/** Config live mutée (postPublish + applyInstagramDestination partagent la même ref) */
+let activeConfig = null;
+/** Dernière URL d'entrée OBS→relais (pour brancher IG à chaud avec une clé fraîche) */
+let lastInputUrl = null;
 let lastStatus = {
   running: false,
   ingestUrl: "",
@@ -84,9 +88,22 @@ function stopAllRelays() {
   }
 }
 
-function startRelay(ffmpegPath, inputUrl, dest) {
-  if (relays.has(dest.platform)) return;
+function stopRelay(platform) {
+  const proc = relays.get(platform);
+  if (!proc) return false;
+  try {
+    proc.kill("SIGKILL");
+  } catch {
+    /* ignore */
+  }
+  relays.delete(platform);
+  return true;
+}
 
+function startRelay(ffmpegPath, inputUrl, dest) {
+  if (relays.has(dest.platform)) stopRelay(dest.platform);
+
+  // Instagram = RTMPS : ffmpeg gère mieux avec flv + URL complète
   const args = [
     "-hide_banner",
     "-loglevel",
@@ -115,7 +132,46 @@ function startRelay(ffmpegPath, inputUrl, dest) {
     /* keep process alive; errors surface on exit */
   });
 
-  publishStatus({ message: `Relay ${dest.platform} démarré` });
+  publishStatus({
+    message: `Relay ${dest.platform} démarré`,
+    activeRelays: [...relays.keys()],
+  });
+}
+
+/**
+ * Branche / rebranche Instagram avec la clé fraîche (après Live Producer).
+ * Si OBS publie déjà vers le relais local → démarre le fan-out IG tout de suite.
+ */
+function applyInstagramDestination(config) {
+  const ig = config.platforms?.instagram || {};
+  // Garde activeConfig à jour pour le prochain postPublish OBS
+  if (activeConfig?.platforms && ig.streamKey) {
+    activeConfig.platforms.instagram = { ...ig };
+  }
+  const dest = instagram.getRtmpDestination(ig);
+  if (!dest) {
+    return { ok: false, reason: "Instagram OFF ou clé manquante" };
+  }
+  if (!nms) {
+    return {
+      ok: false,
+      reason: "Multistream arrêté — démarre-le pour pousser vers Instagram",
+      destination: dest,
+      needsMultistream: true,
+    };
+  }
+  if (!lastInputUrl) {
+    return {
+      ok: true,
+      pending: true,
+      destination: dest,
+      message: "Clé IG enregistrée — le relais démarrera dès qu'OBS publie",
+    };
+  }
+  const ffmpegPath = resolveFfmpeg(config);
+  startRelay(ffmpegPath, lastInputUrl, dest);
+  notify("Instagram", "Relais RTMP actif vers Instagram (clé fraîche)", "info");
+  return { ok: true, active: true, destination: dest };
 }
 
 async function prepareFacebook(config, { title, game }) {
@@ -142,6 +198,7 @@ async function prepareFacebook(config, { title, game }) {
         pageUrl:
           fb.pageUrl ||
           "https://www.facebook.com/profile.php?id=100036165385264",
+        destination: fb.destination || "page",
         rtmpUrl: prepared.rtmpUrl,
         streamKey: prepared.streamKey,
         lastPreparedAt: prepared.at,
@@ -199,10 +256,16 @@ async function prepareFacebook(config, { title, game }) {
 async function prepareInstagram(config, { title } = {}) {
   const ig = config.platforms.instagram || {};
   if (!ig.enabled) return null;
-  if (ig.autoPrepare === false && ig.streamKey) return { ok: true, skipped: true, reused: true };
+  // Toujours une clé neuve : Instagram invalide l'ancienne à chaque session
 
   const igTitle = String(title || "Live").trim();
-  const prepared = await instagram.prepareAndGetCredentials(igTitle);
+  const prepared = await instagram.prepareAndGetCredentials(igTitle, {
+    instagramConfig: ig,
+    obsConfig: config.obs,
+    linkUrl: ig.linkUrl,
+    linkTitle: ig.linkTitle,
+    autoGoLive: ig.autoGoLive !== false,
+  });
   if (!prepared.ok) {
     notify("Instagram", prepared.reason || "Échec Live Producer", "warn");
     return prepared;
@@ -215,11 +278,16 @@ async function prepareInstagram(config, { title } = {}) {
     streamKey: prepared.streamKey,
     lastPreparedAt: prepared.at,
     lastTitle: prepared.title,
+    linkUrl: prepared.linkUrl || ig.linkUrl || "",
+    linkTitle: prepared.linkTitle || ig.linkTitle || "",
   };
   return prepared;
 }
 
-async function start(config, { title, game } = {}) {
+async function start(
+  config,
+  { title, game, skipInstagramPrepare = false, skipFacebookPrepare = false } = {},
+) {
   if (nms) {
     return { ok: true, ...getStatus(), alreadyRunning: true };
   }
@@ -231,8 +299,29 @@ async function start(config, { title, game } = {}) {
   const streamKey = ms.streamKey || "obs";
   const ffmpegPath = resolveFfmpeg(config);
 
-  facebookSession = await prepareFacebook(config, { title, game });
-  const igPrepared = await prepareInstagram(config, { title });
+  activeConfig = config;
+  if (skipFacebookPrepare && config.platforms?.facebook?.streamKey) {
+    facebookSession = {
+      ok: true,
+      platform: "facebook",
+      rtmpUrl: config.platforms.facebook.rtmpUrl,
+      streamKey: config.platforms.facebook.streamKey,
+      reused: true,
+    };
+  } else {
+    facebookSession = await prepareFacebook(config, { title, game });
+  }
+  let igPrepared = null;
+  if (skipInstagramPrepare && config.platforms?.instagram?.streamKey) {
+    igPrepared = {
+      ok: true,
+      reused: true,
+      rtmpUrl: config.platforms.instagram.rtmpUrl,
+      streamKey: config.platforms.instagram.streamKey,
+    };
+  } else {
+    igPrepared = await prepareInstagram(config, { title });
+  }
   const destinations = collectDestinations(config, facebookSession);
 
   const ingestUrl = `rtmp://127.0.0.1:${rtmpPort}/${appName}/${streamKey}`;
@@ -264,12 +353,16 @@ async function start(config, { title, game } = {}) {
       return;
     }
     const inputUrl = `rtmp://127.0.0.1:${rtmpPort}${streamPath}`;
-    for (const dest of destinations) {
+    lastInputUrl = inputUrl;
+    // Destinations à jour (clé IG peut avoir changé via applyInstagramDestination)
+    const cfg = activeConfig || config;
+    const liveDests = collectDestinations(cfg, facebookSession);
+    for (const dest of liveDests) {
       startRelay(ffmpegPath, inputUrl, dest);
     }
     notify(
       "Multistream",
-      `Fan-out actif: ${destinations.map((d) => d.platform).join(", ") || "aucune destination"}`,
+      `Fan-out actif: ${liveDests.map((d) => d.platform).join(", ") || "aucune destination"}`,
       "info",
     );
     publishStatus({
@@ -281,6 +374,7 @@ async function start(config, { title, game } = {}) {
 
   nms.on("donePublish", () => {
     stopAllRelays();
+    lastInputUrl = null;
     publishStatus({ message: "Publication OBS terminée — relais coupés" });
   });
 
@@ -320,6 +414,8 @@ async function start(config, { title, game } = {}) {
 
 async function stop(config) {
   stopAllRelays();
+  lastInputUrl = null;
+  activeConfig = null;
   if (nms) {
     try {
       nms.stop();
@@ -365,4 +461,6 @@ module.exports = {
   pointObsToIngest,
   prepareFacebook,
   prepareInstagram,
+  applyInstagramDestination,
+  stopRelay,
 };

@@ -52,20 +52,57 @@
       "useLiveProducer": true,
       "autoGoLive": true,
       "autoCreateLive": false,
+      "destination": "page",
       "pageId": "100036165385264",
       "pageUrl": "https://www.facebook.com/profile.php?id=100036165385264",
+      "pageName": "Lilwen54",
+      "businessAssetId": "921728321365740",
+      "groupId": "",
+      "groupUrl": "",
+      "personalProfileUrl": "https://www.facebook.com/DiddySong/",
+      "personalUsername": "DiddySong",
+      "savedPages": [
+        {
+          "id": "100036165385264",
+          "name": "Lilwen54",
+          "pageUrl": "https://www.facebook.com/profile.php?id=100036165385264",
+          "businessAssetId": "921728321365740"
+        }
+      ],
+      "savedGroups": [],
+      "linkUrl": "https://leonida-vice.com",
+      "linkTitle": "Site GTA 6",
+      "lastTitle": "Lilwen54 Tiktoklive/twitch/kick",
+      "lastDescription": "Lilwen54 sur Kick/Twitch/TiktokLive/Youtube Tous ce passe ici : https://linktr.ee/lilwen54 et ici : DISCORD : https://discord.gg/Fns7JNb7VG",
+      "lastGame": "",
+      "liveUrl": "",
+      "liveId": "",
+      "liveAt": "",
+      "liveStatus": "",
       "accessToken": "",
       "titleTemplate": "{title} | {game}",
       "streamKey": "",
       "rtmpUrl": "rtmps://live-api-s.facebook.com:443/rtmp",
-      "note": "Toujours la PAGE (pas le profil perso). Live Producer: clé persistante + titre/jeu + Go Live auto."
+      "note": "liveUrl = vrai lien du direct (auto après Go Live). Token Graph optionnel pour forcer la récupération."
     },
     "instagram": {
       "enabled": false,
       "autoPrepare": true,
+      "autoGoLive": true,
+      "startObsVirtualCam": true,
+      "preferObsVirtualCamera": true,
+      "videoDeviceId": "",
+      "videoDeviceLabel": "OBS Virtual Camera",
+      "username": "",
+      "profileUrl": "",
+      "liveUrl": "",
+      "liveId": "",
+      "liveAt": "",
+      "linkUrl": "https://leonida-vice.com",
+      "linkTitle": "Site GTA 6",
       "streamKey": "",
       "rtmpUrl": "rtmps://live-upload.instagram.com:443/rtmp",
-      "note": "Live Producer automatisé : titre hub → Suivant → URL+clé (nouvelle à chaque live). Fenêtre à garder ouverte."
+      "note": "liveUrl se remplit après Go Live. Renseigne username pour https://instagram.com/{user}/live/"
     },
     "tiktok": {
       "enabled": true,
@@ -134,6 +171,44 @@
   "appPaths": {
     "socialstream": "",
     "streamerBot": "",
-    "obs": ""
+    "obs": "",
+    "stunnel": "C:\\Users\\Diddy\\Documents\\Stream\\stunnel\\bin\\stunnel.exe",
+    "nginx": "C:\\Users\\Diddy\\Documents\\Stream\\nginx 1.7.12.1 Lizard\\nginx.exe",
+    "nginxDir": "C:\\Users\\Diddy\\Documents\\Stream\\nginx 1.7.12.1 Lizard",
+    "nginxConf": "C:\\Users\\Diddy\\Documents\\Stream\\nginx 1.7.12.1 Lizard\\conf\\nginx.conf"
+  },
+  "companions": {
+    "autoLaunch": true,
+    "skip": {
+      "socialstream": false,
+      "streamerBot": false,
+      "obs": false,
+      "stunnel": false
+    },
+    "note": "Au démarrage du hub: ouvre SSN, Streamer.bot, OBS, stunnel (FB/IG via nginx). Case = ne pas ouvrir. Fermeture manuelle = pas de relaunch cette session."
+  },
+  "streamGuard": {
+    "autoGoLive": false,
+    "note": "OFF par défaut. Si ON: après flux OBS reçu (preview), clique auto « Lancer un direct » sur IG/FB. Sinon boutons manuels seulement."
+  },
+  "updates": {
+    "enabled": true,
+    "checkOnLaunch": true,
+    "autoDownload": true,
+    "autoInstallOnQuit": true,
+    "localDir": "",
+    "remoteUrl": "",
+    "note": "localDir vide = desktop/release. remoteUrl optionnel (HTTP generic). Publier: npm run publish:local"
+  },
+  "aitumVertical": {
+    "pushIgCredentials": true,
+    "instagramOutputIndex": 0,
+    "serverMode": "producer",
+    "igVia": "aitum",
+    "stunnelUrl": "rtmp://127.0.0.1:19351/rtmp",
+    "width": 1080,
+    "height": 1920,
+    "autoStartStreaming": true,
+    "note": "IG = Aitum Vertical Streaming (pas le bouton Stream OBS). Préparer IG → clé dans le slot → Start Streaming Vertical → Lancer un direct. igVia=aitum|nginx. index 0 = 1re ligne. serverMode=producer (URL IG) ou stunnel."
   }
 }

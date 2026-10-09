@@ -37,16 +37,16 @@ function getRtmpDestination(kickConfig) {
 }
 
 async function updateChannelMeta(kickConfig, { title, gameName }) {
-  // Kick n'a pas d'API publique stable pour titre/catégorie sans OAuth partenaire.
-  // On conserve les valeurs côté hub pour l'UI / OBS.
-  if (!kickConfig.enabled) return { ok: false, skipped: true, platform: "kick" };
+  // Pas d'API write publique Kick — le hub doit passer par Streamer.bot.
   return {
-    ok: true,
+    ok: false,
+    skipped: !kickConfig?.enabled,
     platform: "kick",
     localOnly: true,
     title,
     gameName,
-    note: "Kick: titre/jeu appliqués localement (API write limitée). Vérifie dans le dashboard Kick.",
+    reason:
+      "Kick: utilise Streamer.bot (compte Kick lié + AnimeBeat Set Title Game) — pas d’API write dans le hub",
   };
 }
 

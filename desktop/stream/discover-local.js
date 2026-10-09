@@ -32,6 +32,7 @@ const DEFAULT_PATHS = {
     HOME,
     "AppData/Roaming/obs-studio/plugin_config/obs-websocket/config.json",
   ),
+  stunnelExe: path.join(HOME, "Documents/Stream/stunnel/bin/stunnel.exe"),
 };
 
 function readJson(file) {
@@ -123,11 +124,19 @@ function discoverObs() {
   };
 }
 
+function discoverStunnel() {
+  const exe = DEFAULT_PATHS.stunnelExe;
+  return {
+    exe: fs.existsSync(exe) ? exe : "",
+  };
+}
+
 function discoverAll() {
   return {
     socialStreamNinja: discoverSsn(),
     streamerBot: discoverStreamerBot(),
     obs: discoverObs(),
+    stunnel: discoverStunnel(),
     paths: DEFAULT_PATHS,
   };
 }
@@ -141,6 +150,25 @@ function applyDiscovery(config, discovered = discoverAll()) {
     socialstream: discovered.socialStreamNinja.exe || next.appPaths?.socialstream || "",
     streamerBot: discovered.streamerBot.exe || next.appPaths?.streamerBot || "",
     obs: discovered.obs.exe || next.appPaths?.obs || "",
+    stunnel:
+      next.appPaths?.stunnel ||
+      discovered.stunnel.exe ||
+      DEFAULT_PATHS.stunnelExe ||
+      "",
+  };
+
+  next.companions = {
+    autoLaunch: next.companions?.autoLaunch !== false,
+    skip: {
+      socialstream: false,
+      streamerBot: false,
+      obs: false,
+      stunnel: false,
+      ...(next.companions?.skip || {}),
+    },
+    note:
+      next.companions?.note ||
+      "Au démarrage: SSN, Streamer.bot, OBS, stunnel. Case = skip. Fermeture manuelle = pas de relaunch.",
   };
 
   next.socialStreamNinja = {

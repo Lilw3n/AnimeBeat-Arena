@@ -7,10 +7,39 @@ const path = require("path");
 const os = require("os");
 const crypto = require("crypto");
 
-const ACTIONS_PATH = path.join(
-  os.homedir(),
-  "Downloads/Streamer.bot-x64-0.2.8/data/actions.json",
-);
+function resolveActionsPath() {
+  const candidates = [];
+  try {
+    const { loadConfig } = require("./config");
+    const cfg = loadConfig();
+    const exe = cfg.appPaths?.streamerBot || "";
+    if (exe) {
+      candidates.push(path.join(path.dirname(exe), "data", "actions.json"));
+    }
+  } catch {
+    /* optional */
+  }
+  const home = os.homedir();
+  const downloads = path.join(home, "Downloads");
+  try {
+    const dirs = fs.readdirSync(downloads).filter((n) => /^Streamer\.bot/i.test(n));
+    for (const d of dirs) {
+      candidates.push(path.join(downloads, d, "data", "actions.json"));
+    }
+  } catch {
+    /* optional */
+  }
+  candidates.push(
+    path.join(home, "Downloads/Streamer.bot-x64-0.2.8/data/actions.json"),
+    path.join(home, "Downloads/Streamer.bot/data/actions.json"),
+  );
+  for (const p of candidates) {
+    if (p && fs.existsSync(p)) return p;
+  }
+  return candidates[0] || path.join(home, "Downloads/Streamer.bot-x64-0.2.8/data/actions.json");
+}
+
+const ACTIONS_PATH = resolveActionsPath();
 
 const CSHARP_SOURCE = `using System;
 
@@ -23,15 +52,18 @@ public class CPHInline
         CPH.TryGetArg("title", out title);
         CPH.TryGetArg("game", out game);
 
+        // Met à jour tous les comptes liés (Twitch + Kick, etc.)
         if (!string.IsNullOrWhiteSpace(title))
         {
-            CPH.SetChannelTitle(title);
+            try { CPH.SetChannelTitle(title); }
+            catch (System.Exception ex) { CPH.LogWarn("[AnimeBeat] SetChannelTitle: " + ex.Message); }
             CPH.LogInfo("[AnimeBeat] Title => " + title);
         }
 
         if (!string.IsNullOrWhiteSpace(game))
         {
-            CPH.SetChannelGame(game);
+            try { CPH.SetChannelGame(game); }
+            catch (System.Exception ex) { CPH.LogWarn("[AnimeBeat] SetChannelGame: " + ex.Message); }
             CPH.LogInfo("[AnimeBeat] Game => " + game);
         }
 
@@ -90,11 +122,14 @@ function makeAction(name, id) {
 }
 
 function install() {
-  if (!fs.existsSync(ACTIONS_PATH)) {
-    throw new Error(`actions.json introuvable: ${ACTIONS_PATH}`);
+  const actionsPath = resolveActionsPath();
+  if (!fs.existsSync(actionsPath)) {
+    throw new Error(
+      `actions.json introuvable. Cherché sous Downloads/Streamer.bot* et appPaths.streamerBot. Dernier: ${actionsPath}`,
+    );
   }
 
-  let text = fs.readFileSync(ACTIONS_PATH, "utf8");
+  let text = fs.readFileSync(actionsPath, "utf8");
   const bom = text.charCodeAt(0) === 0xfeff;
   if (bom) text = text.slice(1);
   const data = JSON.parse(text);
@@ -111,8 +146,8 @@ function install() {
     throw new Error("Format actions.json non reconnu");
   }
 
-  const backup = ACTIONS_PATH + `.bak-animebeat-${Date.now()}`;
-  fs.copyFileSync(ACTIONS_PATH, backup);
+  const backup = actionsPath + `.bak-animebeat-${Date.now()}`;
+  fs.copyFileSync(actionsPath, backup);
 
   const titleId = "8f3c2a10-5b6d-4e1a-9c2f-000000000001";
   const gameId = "8f3c2a10-5b6d-4e1a-9c2f-000000000002";
@@ -139,12 +174,12 @@ function install() {
 
   const out = rootKey ? { ...data, actions: list } : list;
   const json = JSON.stringify(out, null, 2);
-  fs.writeFileSync(ACTIONS_PATH, bom ? "\uFEFF" + json : json, "utf8");
+  fs.writeFileSync(actionsPath, bom ? "\uFEFF" + json : json, "utf8");
 
   return {
     ok: true,
     backup,
-    actionsPath: ACTIONS_PATH,
+    actionsPath,
     installed: wanted.map((a) => a.name),
     patchedChangeGameName: Boolean(changeGame),
   };

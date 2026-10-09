@@ -11,12 +11,21 @@ function getStatus() {
 
 function dockUrl(config) {
   const ssn = config.socialStreamNinja || {};
-  if (ssn.dockUrl) return ssn.dockUrl;
-  const session = String(ssn.sessionId || "").trim();
-  if (!session) return "";
-  const base = (ssn.dockBase || "https://socialstream.ninja/dock.html").replace(/\?.*$/, "");
-  const serverFlag = ssn.server === false ? "" : "&server";
-  return `${base}?session=${encodeURIComponent(session)}${serverFlag}`;
+  let url = "";
+  if (ssn.dockUrl) {
+    url = String(ssn.dockUrl);
+  } else {
+    const session = String(ssn.sessionId || "").trim();
+    if (!session) return "";
+    const base = (ssn.dockBase || "https://socialstream.ninja/dock.html").replace(/\?.*$/, "");
+    const serverFlag = ssn.server === false ? "" : "&server";
+    // noturn/novideo: évite le spam DNS TURN VDO.Ninja quand on veut seulement le chat texte
+    url = `${base}?session=${encodeURIComponent(session)}${serverFlag}&noturn&novideo`;
+  }
+  if (url && ssn.allowTurn !== true && !/[?&]noturn(=|&|$)/i.test(url)) {
+    url += (url.includes("?") ? "&" : "?") + "noturn&novideo";
+  }
+  return url;
 }
 
 function featuredUrl(config) {

@@ -78,6 +78,174 @@ async function endLive(facebookConfig, liveVideoId) {
   return { ok: true };
 }
 
+/**
+ * Met à jour titre/description d’un live FB en cours via Graph (sans Producer UI).
+ * Résout liveVideoId depuis la config ou /page/live_videos?broadcast_status=LIVE.
+ */
+async function updateLiveViaGraph(facebookConfig = {}, { title, description, game } = {}) {
+  const token = String(facebookConfig.accessToken || "").trim();
+  if (!token) return { ok: false, reason: "accessToken Facebook manquant" };
+
+  let liveId = String(
+    facebookConfig.liveVideoId || facebookConfig.liveId || "",
+  ).trim();
+  if (!liveId) {
+    try {
+      const found = await producer.fetchLiveUrlFromGraph(facebookConfig);
+      if (found?.ok && found.liveId) liveId = String(found.liveId);
+    } catch {
+      /* optional */
+    }
+  }
+  if (!liveId) {
+    return { ok: false, reason: "aucun live LIVE (Graph) — Producer UI en secours" };
+  }
+
+  const cleanTitle = String(title || "").trim().slice(0, 254);
+  const cleanDesc = String(
+    description || `${cleanTitle}${game ? ` — ${game}` : ""}`,
+  )
+    .trim()
+    .slice(0, 1000);
+  if (!cleanTitle && !cleanDesc) {
+    return { ok: false, reason: "titre/description vides" };
+  }
+
+  const params = new URLSearchParams({ access_token: token });
+  if (cleanTitle) params.set("title", cleanTitle);
+  if (cleanDesc) params.set("description", cleanDesc);
+
+  const res = await fetch(`https://graph.facebook.com/v21.0/${encodeURIComponent(liveId)}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: params,
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    return {
+      ok: false,
+      platform: "facebook",
+      reason: json?.error?.message || res.statusText,
+      liveId,
+    };
+  }
+  try {
+    const { loadConfig, saveConfig } = require("../config");
+    const cfg = loadConfig();
+    saveConfig({
+      ...cfg,
+      platforms: {
+        ...cfg.platforms,
+        facebook: {
+          ...(cfg.platforms?.facebook || {}),
+          liveId,
+          liveVideoId: liveId,
+          lastTitle: cleanTitle || cfg.platforms?.facebook?.lastTitle || "",
+          ...(game ? { lastGame: String(game) } : {}),
+        },
+      },
+    });
+  } catch {
+    /* optional */
+  }
+  return {
+    ok: true,
+    platform: "facebook",
+    live: true,
+    via: "graph",
+    liveId,
+    title: cleanTitle,
+  };
+}
+
+/**
+ * Vérifie le token Graph (PAGE) et liste un live LIVE éventuel.
+ */
+async function testGraph(facebookConfig = {}) {
+  const token = String(facebookConfig.accessToken || "").trim();
+  const pageId = String(facebookConfig.pageId || "").trim();
+  if (!token) {
+    return {
+      ok: false,
+      reason: "Colle un Page Access Token dans Facebook → Token Graph API",
+    };
+  }
+  try {
+    const meUrl = `https://graph.facebook.com/v21.0/me?fields=id,name&access_token=${encodeURIComponent(token)}`;
+    const meRes = await fetch(meUrl);
+    const me = await meRes.json().catch(() => ({}));
+    if (!meRes.ok) {
+      return { ok: false, reason: me?.error?.message || "Token invalide", me };
+    }
+
+    let page = null;
+    if (pageId) {
+      const pUrl =
+        `https://graph.facebook.com/v21.0/${encodeURIComponent(pageId)}` +
+        `?fields=id,name,access_token&access_token=${encodeURIComponent(token)}`;
+      const pRes = await fetch(pUrl);
+      page = await pRes.json().catch(() => ({}));
+      if (!pRes.ok) {
+        return {
+          ok: false,
+          reason: page?.error?.message || `Page ${pageId} inaccessible avec ce token`,
+          me,
+          page,
+        };
+      }
+    }
+
+    const live = await producer.fetchLiveUrlFromGraph({
+      ...facebookConfig,
+      accessToken: token,
+      pageId: pageId || me.id,
+    });
+
+    return {
+      ok: true,
+      tokenAs: me.name || me.id,
+      tokenId: me.id,
+      page: page
+        ? { id: page.id, name: page.name }
+        : null,
+      live: live?.ok
+        ? { liveId: live.liveId, liveUrl: live.liveUrl }
+        : { active: false, reason: live?.reason || "pas de live LIVE en ce moment" },
+      tip: live?.ok
+        ? "OK — maj titre via Graph possible pendant ce live"
+        : "Token OK — la maj Graph marchera dès qu’un live PAGE est LIVE",
+    };
+  } catch (err) {
+    return { ok: false, reason: err.message || "échec test Graph" };
+  }
+}
+
+/**
+ * Titre/jeu FB : Graph si live en cours + token, sinon Live Producer (auto-ouverture).
+ */
+async function updateTitleGame(opts = {}) {
+  const facebookConfig = opts.facebookConfig || {};
+  const graph = await updateLiveViaGraph(facebookConfig, opts).catch((err) => ({
+    ok: false,
+    reason: err.message,
+  }));
+  if (graph?.ok) return graph;
+
+  const ui = await producer.updateTitleGame({
+    ...opts,
+    facebookConfig,
+    autoOpen: opts.autoOpen !== false,
+  });
+  if (ui?.ok) return ui;
+  return {
+    ok: false,
+    platform: "facebook",
+    reason: ui?.reason || graph?.reason || "échec titre FB",
+    graph,
+    ui,
+  };
+}
+
 function getRtmpDestination(facebookConfig, liveSession) {
   if (!facebookConfig.enabled) return null;
   if (liveSession?.rtmpUrl && liveSession?.streamKey) {
@@ -106,12 +274,21 @@ function getRtmpDestination(facebookConfig, liveSession) {
 /**
  * Live Producer web sur la PAGE (pas le profil perso).
  */
-async function prepareViaProducer(facebookConfig, { title, game, description } = {}) {
-  return producer.prepareLive(facebookConfig, { title, game, description });
+async function prepareViaProducer(
+  facebookConfig,
+  { title, game, description, linkUrl, linkTitle } = {},
+) {
+  return producer.prepareLive(facebookConfig, {
+    title,
+    game,
+    description,
+    linkUrl: linkUrl ?? facebookConfig.linkUrl,
+    linkTitle: linkTitle ?? facebookConfig.linkTitle,
+  });
 }
 
 async function goLive(options) {
-  return producer.goLive(options);
+  return producer.goLive(options || {});
 }
 
 async function watchAndGoLive(timeoutMs) {
@@ -128,5 +305,16 @@ module.exports = {
   watchAndGoLive,
   openProducer: (cfg) => producer.openProducer(cfg),
   getProducerStatus: () => producer.getStatus(),
+  updateTitleGame,
+  updateLiveViaGraph,
+  testGraph,
+  updateStickyLink: (opts) =>
+    producer.updateStickyLink({
+      ...opts,
+      facebookConfig: opts?.facebookConfig,
+      autoOpen: opts?.autoOpen !== false,
+    }),
+  capturePublicLiveUrl: (cfg) => producer.capturePublicLiveUrl(cfg),
+  endBroadcast: () => producer.endBroadcast(),
   DEFAULT_PAGE_URL: producer.DEFAULT_PAGE_URL,
 };

@@ -50,6 +50,95 @@
       .pill.ok { color: var(--ok); }
       .pill.warn { color: var(--warn); }
       .pill.bad { color: var(--bad); }
+      .jump-nav {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        padding: 8px 16px;
+        border-bottom: 1px solid var(--border);
+        background: #0a122d;
+        position: sticky;
+        top: 52px;
+        z-index: 4;
+      }
+      .jump-nav a {
+        color: var(--accent);
+        text-decoration: none;
+        font-size: 12px;
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        padding: 4px 10px;
+        background: #0d1430;
+      }
+      .jump-nav a:hover { border-color: var(--accent); }
+      .live-links-list {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+      .live-link-row {
+        display: grid;
+        grid-template-columns: 140px 1fr auto auto;
+        gap: 8px;
+        align-items: center;
+        padding: 6px 8px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: #0d1430;
+        font-size: 12px;
+      }
+      .live-link-row .name { color: var(--muted); font-weight: 600; }
+      .live-link-row .url {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        color: var(--accent);
+      }
+      .live-link-row.onair {
+        border-color: rgba(248, 113, 113, 0.55);
+        background: #1a1020;
+      }
+      .live-link-row.onair .name { color: #fca5a5; }
+      .cam-box {
+        margin-top: 10px;
+        padding: 10px;
+        border: 1px solid rgba(20, 184, 255, 0.45);
+        border-radius: 10px;
+        background: linear-gradient(180deg, rgba(20, 184, 255, 0.12), rgba(13, 20, 48, 0.6));
+      }
+      .cam-box > .cam-title {
+        font-size: 12px;
+        font-weight: 700;
+        color: var(--accent);
+        margin-bottom: 6px;
+      }
+      .btn-prepare {
+        font-size: 14px !important;
+        font-weight: 700 !important;
+        padding: 10px 16px !important;
+        min-height: 42px;
+        border-color: rgba(52, 211, 153, 0.65) !important;
+        background: linear-gradient(180deg, #0f766e, #115e59) !important;
+        color: #ecfdf5 !important;
+        box-shadow: 0 0 0 1px rgba(52, 211, 153, 0.25), 0 6px 18px rgba(16, 185, 129, 0.18);
+      }
+      .btn-prepare:hover { filter: brightness(1.08); }
+      .btn-prepare.is-busy,
+      button.is-busy {
+        opacity: 0.85;
+        cursor: wait;
+        border-color: var(--warn) !important;
+        background: linear-gradient(180deg, #92400e, #78350f) !important;
+        color: #fffbeb !important;
+        animation: pulse-busy 1.2s ease-in-out infinite;
+      }
+      @keyframes pulse-busy {
+        0%, 100% { box-shadow: 0 0 0 0 rgba(251, 191, 36, 0.35); }
+        50% { box-shadow: 0 0 0 6px rgba(251, 191, 36, 0); }
+      }
+      @media (max-width: 900px) {
+        .live-link-row { grid-template-columns: 1fr; }
+      }
       main {
         display: grid;
         grid-template-columns: 1.2fr 1fr;
@@ -177,10 +266,11 @@
   <body>
     <header>
       <div>
-        <h1>AnimeBeat Stream Command</h1>
-        <div class="sub">SSN chat · Streamer.bot titres/jeux · Multistream · Dashboard OBS</div>
+        <h1>AnimeBeat Stream Command <span id="appVersion" style="color:var(--accent);font-weight:600"></span></h1>
+        <div class="sub" id="appChannel">SSN chat · Streamer.bot titres/jeux · Multistream · Dashboard OBS</div>
       </div>
       <div class="status-pills">
+        <div class="pill" id="verPill">v…</div>
         <div class="pill" id="obsPill">OBS …</div>
         <div class="pill" id="msPill">Multistream …</div>
         <div class="pill" id="ssnPill">SSN …</div>
@@ -188,21 +278,88 @@
         <div class="pill ok">TikTok = Studio externe</div>
       </div>
     </header>
+    <nav class="jump-nav" aria-label="Accès rapide">
+      <a href="#sec-live-links">Liens live</a>
+      <a href="#sec-titles">Titres &amp; jeux</a>
+      <a href="#sec-ig-link">Lien Instagram</a>
+      <a href="#sec-fb-info">Infos Facebook</a>
+      <a href="#sec-golive">Go Live</a>
+      <a href="#sec-updates">MàJ auto</a>
+      <a href="#platforms">Plateformes</a>
+      <a href="#sec-ig-camera">Caméra IG</a>
+    </nav>
 
     <main>
-      <section class="full">
-        <h2>Apps locales (auto-détectées)</h2>
-        <p class="hint">Chemins lus depuis tes installs SSN / Streamer.bot / OBS. Si le chat est vide : SSN doit avoir Remote API + Send chat to API server ON, et le dock ouvert.</p>
+      <section class="full" id="sec-updates">
+        <h2>Mises à jour auto (PC)</h2>
+        <p class="hint">
+          Feed local : <code>desktop/release/</code> (après <code>npm run publish:local</code>).
+          Version <b>installée</b> = télécharge + installe au redémarrage.
+          Mode <b>DEV</b> (bat) = te signale si un installateur plus récent est prêt.
+        </p>
+        <label style="display:flex;gap:8px;align-items:center;margin:8px 0">
+          <input type="checkbox" id="updEnabled" checked />
+          Vérifier les mises à jour automatiquement
+        </label>
         <div class="actions">
+          <button type="button" class="primary" id="btnUpdCheck">Vérifier maintenant</button>
+          <button type="button" id="btnUpdInstall">Installer &amp; redémarrer</button>
+          <button type="button" id="btnUpdOpenRelease">Ouvrir dossier release</button>
+        </div>
+        <p class="hint" id="updHint">—</p>
+      </section>
+
+      <section class="full" id="sec-live-links">
+        <h2>Liens de chaque live</h2>
+        <p class="hint">
+          Les liens <b>🔴 LIVE</b> se mettent à jour automatiquement après « Lancer un direct » FB/IG
+          (scrape Producer + Graph FB si token). Sinon = page/profil.
+        </p>
+        <div class="row" style="margin-bottom:8px">
+          <div>
+            <label>Pseudo Instagram (pour /pseudo/live/)</label>
+            <input id="igUsername" placeholder="ton_pseudo_ig" />
+          </div>
+          <div class="actions" style="align-items:flex-end">
+            <button type="button" id="btnSaveIgUser">Sauver pseudo IG</button>
+            <button type="button" id="btnRefreshLiveLinks">Rafraîchir liste</button>
+            <button type="button" class="primary" id="btnCaptureLiveUrls">Récupérer liens LIVE maintenant</button>
+            <button type="button" id="btnCopyAllLiveLinks">Copier tous</button>
+          </div>
+        </div>
+        <div id="liveLinksList" class="live-links-list"></div>
+      </section>
+
+      <section class="full">
+        <h2>Apps locales (auto-démarrage)</h2>
+        <p class="hint">
+          Au lancement du hub : <b>stunnel</b> (FB/IG + nginx), OBS, Streamer.bot, Social Stream.
+          Coche « ne pas ouvrir » pour skip. Si tu fermes une app à la main, elle ne se rouvre pas cette session.
+        </p>
+        <label style="display:flex;gap:8px;align-items:center;margin:8px 0">
+          <input type="checkbox" id="companionsAutoLaunch" checked /> Ouvrir automatiquement au démarrage
+        </label>
+        <div class="row3" id="companionSkips" style="margin:8px 0">
+          <label style="display:flex;gap:6px;align-items:center;margin:0"><input type="checkbox" id="skipStunnel" /> Ne pas ouvrir stunnel</label>
+          <label style="display:flex;gap:6px;align-items:center;margin:0"><input type="checkbox" id="skipObs" /> Ne pas ouvrir OBS</label>
+          <label style="display:flex;gap:6px;align-items:center;margin:0"><input type="checkbox" id="skipSb" /> Ne pas ouvrir Streamer.bot</label>
+          <label style="display:flex;gap:6px;align-items:center;margin:0"><input type="checkbox" id="skipSsn" /> Ne pas ouvrir Social Stream</label>
+        </div>
+        <label>Chemin stunnel (FB/IG RTMPS)</label>
+        <input id="pathStunnel" placeholder="C:\Users\...\Documents\Stream\stunnel\bin\stunnel.exe" />
+        <div class="actions" style="margin-top:8px">
           <button class="primary" id="btnDiscover">Relire mes configs locales</button>
+          <button id="btnCompanionsEnsure">Ouvrir les companions maintenant</button>
+          <button id="btnLaunchStunnel">Lancer stunnel</button>
           <button id="btnLaunchSsn">Lancer Social Stream</button>
           <button id="btnLaunchSb">Lancer Streamer.bot</button>
           <button id="btnLaunchObs">Lancer OBS</button>
         </div>
         <p class="hint" id="discoverHint">—</p>
+        <p class="hint" id="companionsHint">—</p>
       </section>
 
-      <section>
+      <section id="sec-titles">
         <h2>Titre & jeu (toutes plateformes)</h2>
         <div class="row">
           <div>
@@ -227,7 +384,7 @@
         </div>
         <div class="stack">
           <div>
-            <label>Titre (appliqué partout via templates)</label>
+            <label>Titre</label>
             <input id="title" placeholder="Ex: Classement anime en live" />
           </div>
           <div>
@@ -236,28 +393,248 @@
             <div class="games" id="gameResults"></div>
           </div>
         </div>
+        <label style="margin-top:8px">Appliquer sur</label>
+        <div class="row3" id="titleTargets" style="margin:6px 0 8px">
+          <label style="display:flex;gap:6px;align-items:center;margin:0"><input type="checkbox" class="titleTarget" value="twitch" checked /> Twitch</label>
+          <label style="display:flex;gap:6px;align-items:center;margin:0"><input type="checkbox" class="titleTarget" value="kick" checked /> Kick</label>
+          <label style="display:flex;gap:6px;align-items:center;margin:0"><input type="checkbox" class="titleTarget" value="obs" checked /> OBS</label>
+          <label style="display:flex;gap:6px;align-items:center;margin:0"><input type="checkbox" class="titleTarget" value="streamerbot" checked /> Streamer.bot</label>
+          <label style="display:flex;gap:6px;align-items:center;margin:0"><input type="checkbox" class="titleTarget" value="facebook" checked /> Facebook</label>
+          <label style="display:flex;gap:6px;align-items:center;margin:0"><input type="checkbox" class="titleTarget" value="instagram" checked /> Instagram</label>
+        </div>
         <div class="actions">
-          <button class="primary" id="btnApply">Appliquer titre + jeu partout</button>
+          <button type="button" id="btnTargetsAll">Tout cocher</button>
+          <button type="button" id="btnTargetsNone">Tout décocher</button>
+          <button class="primary" id="btnApply">Appliquer titre + jeu</button>
           <button id="btnSearch">Chercher jeu</button>
           <button id="btnSyncScene">Maj scène OBS (écrans)</button>
           <button id="btnSavePreset">Sauver preset</button>
         </div>
+        <div class="actions" style="margin-top:4px">
+          <button type="button" data-apply-one="twitch">Twitch seul</button>
+          <button type="button" data-apply-one="kick">Kick seul</button>
+          <button type="button" data-apply-one="obs">OBS seul</button>
+          <button type="button" data-apply-one="streamerbot">SB seul</button>
+          <button type="button" data-apply-one="facebook">FB seul</button>
+          <button type="button" data-apply-one="instagram">IG seul</button>
+          <button type="button" class="primary" id="btnLiveTitles">Mettre à jour titres en direct (FB+IG)</button>
+          <button type="button" id="btnVerifyLive">Vérifier canaux live</button>
+          <button type="button" class="primary" id="btnProbeLive">Tester maintenant (probe)</button>
+        </div>
         <p class="hint" id="selectedGame">Aucun jeu sélectionné — la recherche choisira le meilleur match, sinon notification.</p>
+        <p class="hint" id="liveVerifyHint">
+          <b>Titre / jeu / infos</b> : marche <b>avant ou pendant</b> le live.
+          Twitch+Kick → Streamer.bot (:4457). FB → Graph si token, sinon Producer (ouvert auto).
+          IG → Producer ouvert auto. Liens sticky aussi poussés à l’Appliquer si renseignés.
+        </p>
       </section>
 
-      <section>
+      <section class="full" id="sec-ig-link">
+        <h2>① Lien sticky Instagram — c’est ici</h2>
+        <p class="hint">
+          Remplis URL + titre (max 30), puis <b>Sauver</b>. Au Préparer IG le lien est poussé ;
+          ou clique <b>Appliquer lien en direct</b> si le Live Producer IG est déjà ouvert.
+        </p>
+        <div class="row">
+          <div>
+            <label>URL du lien Instagram</label>
+            <input id="igStickyUrl" placeholder="https://leonida-vice.com" />
+          </div>
+          <div>
+            <label>Titre du lien (max 30)</label>
+            <input id="igStickyTitle" placeholder="Site GTA 6" maxlength="30" />
+          </div>
+        </div>
+        <div class="actions" style="margin-top:8px">
+          <button type="button" id="btnIgSaveLink">Sauver lien IG</button>
+          <button type="button" class="primary" id="btnIgPushLink">Appliquer lien en direct</button>
+          <button type="button" id="btnIgPushTitle">Appliquer titre live IG</button>
+        </div>
+        <p class="hint" id="igStickyPreview">Aperçu IG: —</p>
+      </section>
+
+      <section class="full" id="sec-fb-info">
+        <h2>② Infos Facebook Live — c’est ici</h2>
+        <p class="hint">
+          Choisis une <b>page</b> ou un <b>groupe</b> préenregistré, ou ajoute-en un.
+          Profil perso = <code>facebook.com/DiddySong</code> — prudence.
+        </p>
+        <div class="row">
+          <div>
+            <label>Publier sur</label>
+            <select id="fbDestination">
+              <option value="page">PAGE Facebook</option>
+              <option value="group">Groupe Facebook</option>
+              <option value="profile">⚠ Profil perso DiddySong</option>
+            </select>
+          </div>
+          <div>
+            <label>Titre (obligatoire) — Live Producer</label>
+            <input id="fbLiveTitle" placeholder="Lilwen54 Tiktoklive/twitch/kick" />
+          </div>
+        </div>
+        <div>
+          <label>Description (obligatoire)</label>
+          <textarea id="fbLiveDesc" rows="3" placeholder="Lilwen54 sur Kick/Twitch/… + liens"></textarea>
+        </div>
+        <div class="row">
+          <div>
+            <label>Jeu (Identifiez un jeu)</label>
+            <input id="fbLiveGame" placeholder="Just Chatting" />
+          </div>
+          <div class="actions" style="align-items:flex-end">
+            <button type="button" class="primary" id="btnFbPushAllInfo">Appliquer titre + desc + jeu</button>
+          </div>
+        </div>
+        <p class="hint">
+          Ces 3 champs = panneau « Ajouter des infos / Créer une publication » (Public, Titre, Description, Jeu).
+          Audience Public est forcée automatiquement.
+        </p>
+
+        <div id="fbPageFields">
+          <h3 style="margin:12px 0 6px;font-size:1rem">Page préenregistrée</h3>
+          <div class="row">
+            <div>
+              <label>Page active</label>
+              <select id="fbSavedPage"></select>
+            </div>
+            <div class="actions" style="align-items:flex-end">
+              <button type="button" class="primary" id="btnFbUsePage">Utiliser cette page</button>
+            </div>
+          </div>
+          <div class="row">
+            <div>
+              <label>Nom (ex. Lilwen54)</label>
+              <input id="fbNewPageName" placeholder="Lilwen54" />
+            </div>
+            <div>
+              <label>ID ou URL page</label>
+              <input id="fbNewPageId" placeholder="100036165385264 ou profile.php?id=…" />
+            </div>
+          </div>
+          <div class="actions">
+            <button type="button" id="btnFbSavePage">Enregistrer / maj page</button>
+            <button type="button" class="danger" id="btnFbDeletePage">Supprimer page listée</button>
+          </div>
+          <p class="hint" id="fbPageHint">—</p>
+        </div>
+
+        <div id="fbGroupFields" style="display:none">
+          <h3 style="margin:12px 0 6px;font-size:1rem">Groupe préenregistré</h3>
+          <div class="row">
+            <div>
+              <label>Groupe actif</label>
+              <select id="fbSavedGroup"></select>
+            </div>
+            <div class="actions" style="align-items:flex-end">
+              <button type="button" class="primary" id="btnFbUseGroup">Utiliser ce groupe</button>
+            </div>
+          </div>
+          <div class="row">
+            <div>
+              <label>Nom du groupe</label>
+              <input id="fbNewGroupName" placeholder="Mon groupe live" />
+            </div>
+            <div>
+              <label>URL ou ID groupe</label>
+              <input id="fbGroupUrl" placeholder="https://www.facebook.com/groups/…" />
+            </div>
+          </div>
+          <div class="actions">
+            <button type="button" id="btnFbSaveGroup">Enregistrer / maj groupe</button>
+            <button type="button" class="danger" id="btnFbDeleteGroup">Supprimer groupe listé</button>
+          </div>
+          <p class="hint" id="fbGroupHint">—</p>
+        </div>
+
+        <p id="fbProfileWarn" class="hint" style="display:none;color:#b45309;font-weight:600">
+          ⚠ PROFIL PERSO : le direct sera sur DiddySong, pas sur la PAGE. Liens possibles mais attention à l’audience.
+        </p>
+
+        <h3 style="margin:14px 0 6px;font-size:1rem">Graph API Facebook (optionnel)</h3>
+        <p class="hint">
+          Sans token : titres via Live Producer (ouvert auto). Avec <b>Page Access Token</b> :
+          maj titre/description en live sans cliquer dans Producer.
+          Permissions utiles : <code>pages_manage_posts</code>, <code>pages_read_engagement</code>,
+          <code>publish_video</code>. Page ID = Lilwen54 (<code>100036165385264</code>).
+        </p>
+        <div class="row">
+          <div>
+            <label>Page Access Token</label>
+            <input id="fbGraphToken" type="password" autocomplete="off" placeholder="EAAB… (token PAGE, pas user seul)" />
+          </div>
+          <div>
+            <label>Page ID (Graph)</label>
+            <input id="fbGraphPageId" placeholder="100036165385264" />
+          </div>
+        </div>
+        <div class="actions" style="margin-top:8px">
+          <button type="button" class="primary" id="btnFbSaveGraph">Sauver token Graph</button>
+          <button type="button" id="btnFbTestGraph">Tester Graph</button>
+          <button type="button" id="btnFbGraphDocs">Ouvrir Graph Explorer</button>
+        </div>
+        <p class="hint" id="fbGraphHint">Token vide = Producer UI seulement.</p>
+
+        <h3 style="margin:12px 0 6px;font-size:1rem">Lien sticky Facebook</h3>
+        <div class="row">
+          <div>
+            <label>URL du lien</label>
+            <input id="fbStickyUrl" placeholder="https://leonida-vice.com" />
+          </div>
+          <div>
+            <label>Titre du lien (max 30)</label>
+            <input id="fbStickyTitle" placeholder="Site GTA 6" maxlength="30" />
+          </div>
+        </div>
+        <div class="actions" style="margin-top:8px">
+          <button type="button" id="btnFbSaveInfo">Sauver infos FB</button>
+          <button type="button" class="primary" id="btnFbPushMeta">Appliquer titre/jeu + lien en direct</button>
+          <button type="button" id="btnFbPushTitle">Titre/jeu live seul</button>
+          <button type="button" id="btnFbPushLink">Lien live seul</button>
+        </div>
+        <p class="hint" id="fbStickyPreview">Aperçu FB: —</p>
+      </section>
+
+      <section id="sec-golive">
         <h2>Go Live / Multistream</h2>
         <p class="hint">
-          OBS envoie vers le relais local, qui fan-out vers Twitch / Kick / Facebook / Instagram / YouTube.
-          TikTok reste sur <strong>TikTok LIVE Studio</strong> en même temps.
+          Stack Meta: OBS → nginx:1935/live → stunnel (FB:19350 / IG:19351). Autres destinations via multistream si besoin.
+          TikTok reste sur <strong>TikTok LIVE Studio</strong>.
         </p>
+        <label style="display:flex;gap:8px;align-items:center;margin:8px 0">
+          <input type="checkbox" id="guardAutoGoLive" />
+          Auto Go Live IG/FB (garde-fou) — clique « Lancer un direct » seulement quand le preview / flux est reçu
+        </label>
         <div class="dest-list" id="destList">Destinations: …</div>
         <div class="actions">
           <button class="primary" id="btnMsStart">Démarrer multistream + pointer OBS</button>
           <button id="btnObsGoLive">Start Stream OBS</button>
+          <button id="btnArmGoLive">Pousser flux + Go Live IG/FB</button>
           <button class="danger" id="btnObsStop">Stop Stream OBS</button>
           <button class="danger" id="btnMsStop">Arrêter multistream</button>
         </div>
+        <h3 style="margin:14px 0 6px;font-size:1rem">Couper Meta sans couper OBS</h3>
+        <p class="hint">
+          Termine le direct FB/IG (Live Producer + retire le push nginx). Le
+          <b>Start Stream OBS</b> continue — utilise « Stop Stream OBS » seulement si tu veux tout arrêter.
+        </p>
+        <div class="actions">
+          <button type="button" class="danger" id="btnIgEndLive">Terminer live Instagram</button>
+          <button type="button" class="danger" id="btnFbEndLive">Terminer live Facebook</button>
+          <button type="button" class="danger" id="btnEndMetaBoth">Terminer IG + FB</button>
+        </div>
+        <p class="hint" id="endMetaHint">—</p>
+        <h3 style="margin:14px 0 6px;font-size:1rem">Relancer un live (refait toutes les étapes)</h3>
+        <p class="hint">
+          Remplis d’abord titre / lien IG / titre FB ci-dessus. Relance = préparer Producer → clés nginx → OBS → Go Live.
+          Facebook = PAGE / groupe / profil (⚠) selon le sélecteur ci-dessus.
+        </p>
+        <div class="actions">
+          <button type="button" id="btnRelaunchIg">Relancer Instagram</button>
+          <button type="button" id="btnRelaunchFb">Relancer Facebook Live</button>
+          <button type="button" class="primary" id="btnRelaunchBoth">Relancer IG + FB</button>
+        </div>
+        <p class="hint" id="armGoLiveHint">—</p>
         <p class="hint" id="ingestHint">Ingest: —</p>
         <div class="actions">
           <button id="btnClip">Créer clip (Replay Buffer)</button>
@@ -437,28 +814,158 @@
             }
             ${
               key === "instagram"
-                ? `<p class="hint">Automatisé : ouvre Live Producer, remplit le titre du hub, récupère URL + clé (change à chaque live). Compte Pro + login une fois dans la fenêtre.</p>
-                   <div class="actions" style="margin-top:8px">
-                     <button type="button" id="btnIgPrepare">Préparer Instagram (titre→clé)</button>
+                ? `<p class="hint">
+                     Flux IG = <b>Aitum Vertical → Streaming</b> (dock Vertical), <b>pas</b> le bouton Stream OBS classique.
+                     Checklist: 1) ligne Streaming « Instagram » enabled dans Vertical Settings · 2) Index = rang (0 = 1ʳᵉ) · 3) mode URL IG · 4) Préparer IG.
+                   </p>
+                   <div class="cam-box" id="sec-ig-aitum">
+                     <div class="cam-title">① Aitum Vertical → clé Instagram auto</div>
+                     <p class="hint" style="margin:0 0 8px">
+                       Dans Vertical Settings → Streaming : crée une ligne <b>Instagram</b> (Enabled),
+                       laisse Server/Key vides. Le hub les remplit à chaque live.
+                       Index = rang de la ligne (0 = 1re).
+                     </p>
+                     <div class="row" style="margin:0">
+                       <div>
+                         <label>Index slot Aitum (0, 1, 2…)</label>
+                         <input id="aitumIgIndex" type="number" min="0" max="20" value="${Number(config.aitumVertical?.instagramOutputIndex ?? 0)}" />
+                       </div>
+                       <div>
+                         <label>Serveur</label>
+                         <select id="aitumIgServerMode">
+                           <option value="producer" ${(config.aitumVertical?.serverMode || "producer") === "producer" ? "selected" : ""}>URL IG (Live Producer)</option>
+                           <option value="stunnel" ${config.aitumVertical?.serverMode === "stunnel" ? "selected" : ""}>Stunnel local :19351</option>
+                         </select>
+                       </div>
+                     </div>
+                     <label style="display:flex;gap:8px;align-items:center;margin:8px 0">
+                       <input type="checkbox" id="aitumPushIg" ${config.aitumVertical?.pushIgCredentials !== false ? "checked" : ""} />
+                       Pousser clé IG dans Aitum à chaque Préparer
+                     </label>
+                     <div class="actions" style="margin-top:4px">
+                       <button type="button" class="primary" id="btnAitumSaveIg">Sauver réglages Aitum IG</button>
+                       <button type="button" id="btnAitumPushIgNow">Pousser clé IG maintenant</button>
+                     </div>
+                     <p class="hint" id="aitumIgHint" style="margin-top:6px">Aitum IG: —</p>
+                   </div>
+                   <div class="cam-box" id="sec-ig-camera">
+                     <div class="cam-title">② Caméra Live Producer (optionnel)</div>
+                     <p class="hint" style="margin:0 0 8px">
+                       IG web choisit souvent la webcam par défaut — le vrai flux vertical part d’Aitum Streaming.
+                       VirtualCam sert surtout à l’aperçu Producer.
+                     </p>
+                     <label>Caméra utilisée par Live Producer IG</label>
+                     <select id="igCameraSelect" style="width:100%;margin-bottom:6px"></select>
+                     <div class="actions" style="margin-top:4px">
+                       <button type="button" class="primary" id="btnIgAitumCam">▶ Démarrer caméra Aitum Vertical</button>
+                       <button type="button" id="btnIgRefreshCams">Rafraîchir caméras</button>
+                       <button type="button" class="primary" id="btnIgApplyCam">Appliquer caméra</button>
+                       <button type="button" id="btnIgVirtualCam">VirtualCam OBS (secours)</button>
+                       <button type="button" id="btnIgOpenLink">Ouvrir lien sticky</button>
+                     </div>
+                     <p class="hint" id="igCamHint" style="margin-top:6px">Caméra: —</p>
+                     <p class="hint" style="margin-top:4px">
+                       Choisis ★ <b>OBS Virtual Camera</b> (Aitum), puis <b>Appliquer caméra</b> avant Préparer.
+                       Le hub force ce device (plus la webcam PC par défaut). En live: change la source dans OBS/Aitum.
+                     </p>
+                   </div>
+                   <div class="actions" style="margin-top:10px">
+                     <button type="button" class="btn-prepare" id="btnIgPrepare" title="Étape clé: ouvre Live Producer, titre, lien, clé RTMP">▶ Préparer Instagram</button>
                      <button type="button" id="btnIgGoLive">Lancer un direct IG</button>
                      <button type="button" id="btnIgOpen">Ouvrir Live Producer</button>
+                     <button type="button" id="btnIgRelaunch">Relancer Instagram</button>
+                     <button type="button" class="danger" id="btnIgEndLiveCard">Terminer live IG</button>
                    </div>
-                   <p class="hint" id="igHint">—</p>`
+                   <p class="hint" id="igHint">Pendant « Préparation… » le bouton pulse en orange — attends la fin (clé + lien).</p>`
                 : ""
             }
             ${
               key === "facebook"
-                ? `<p class="hint">Toujours ta <b>PAGE</b> (pas le profil perso) : clé persistante → titre + jeu → Lancer un direct quand le flux est prêt.</p>
+                ? `<p class="hint">Destination = sélecteur PAGE / groupe / profil ⚠ ci-dessus. <b>1 seul hub</b> (pas d’autre Electron = déco Facebook).</p>
                    <div class="actions" style="margin-top:8px">
-                     <button type="button" id="btnFbPrepare">Préparer Facebook PAGE</button>
+                     <button type="button" class="btn-prepare" id="btnFbPrepare" title="Étape clé: PAGE/groupe, titre, lien, clé RTMP">▶ Préparer Facebook Live</button>
                      <button type="button" id="btnFbGoLive">Lancer un direct FB</button>
-                     <button type="button" id="btnFbOpen">Ouvrir la PAGE</button>
+                     <button type="button" id="btnFbOpen">Ouvrir Live Producer</button>
+                     <button type="button" id="btnFbRelaunch">Relancer Facebook Live</button>
+                     <button type="button" class="danger" id="btnFbEndLiveCard">Terminer live FB</button>
                    </div>
-                   <p class="hint" id="fbHint">—</p>`
+                   <p class="hint" id="fbHint">« Préparation… » = en cours (orange). Attends OK avant Go Live.</p>`
                 : ""
             }
           </div>
         `;
+      }
+
+      async function refreshIgCameras() {
+        const sel = document.getElementById("igCameraSelect");
+        const camHint = document.getElementById("igCamHint");
+        if (!sel) return;
+        const current =
+          config.platforms?.instagram?.videoDeviceId ||
+          config.platforms?.instagram?.videoDeviceLabel ||
+          "OBS Virtual Camera";
+        sel.innerHTML = `<option value="">Chargement…</option>`;
+        const res = await window.streamHub.listCameras();
+        const videos = res?.video || [];
+        const vc = res?.virtualCam;
+        const aitumBit = vc?.aitumVertical
+          ? "Aitum Vertical VCam = ON"
+          : vc?.aitumOk === false
+            ? "Aitum ?"
+            : "Aitum Vertical VCam = OFF";
+        const mainBit = vc?.mainVirtualCam ? "OBS VCam = ON" : "OBS VCam = OFF";
+        const vcBit = `${aitumBit} · ${mainBit}`;
+        if (!videos.length) {
+          sel.innerHTML = `<option value="">Aucune caméra Vue par le hub</option>`;
+          if (camHint) {
+            camHint.textContent =
+              `${vcBit}. Clique « Démarrer caméra Aitum Vertical », attends 2s, Rafraîchir. ` +
+              `Plugin Vertical Canvas doit être coché dans OBS. Windows: Confidentialité → Caméra OK.`;
+          }
+          return;
+        }
+        sel.innerHTML = videos
+          .map((d) => {
+            const label = d.label || d.deviceId.slice(0, 12);
+            const mark = /obs\s*virtual|aitum|vertical/i.test(label) ? " ★" : "";
+            const selected =
+              d.deviceId === config.platforms?.instagram?.videoDeviceId ||
+              label === config.platforms?.instagram?.videoDeviceLabel ||
+              (/obs\s*virtual/i.test(label) && /obs/i.test(String(current)))
+                ? "selected"
+                : "";
+            return `<option value="${d.deviceId}" data-label="${label.replace(/"/g, "&quot;")}" ${selected}>${label}${mark}</option>`;
+          })
+          .join("");
+        if (!sel.value) {
+          const obsOpt =
+            [...sel.options].find((o) => /obs\s*virtual\s*camera/i.test(o.text)) ||
+            [...sel.options].find((o) => /obs\s*virtual|aitum|vertical/i.test(o.text));
+          if (obsOpt) sel.value = obsOpt.value;
+        }
+        if (camHint) {
+          const opt = sel.selectedOptions[0];
+          camHint.textContent = opt
+            ? `${vcBit} · IG utilisera: ${opt.text}${res?.note ? ` · ${res.note}` : ""}`
+            : `${vcBit} · choisis une caméra (★ = OBS/Vertical).`;
+        }
+      }
+
+      function readIgCameraChoice() {
+        const sel = document.getElementById("igCameraSelect");
+        if (!sel || !sel.selectedOptions[0]) return {};
+        const opt = sel.selectedOptions[0];
+        return {
+          videoDeviceId: opt.value || "",
+          videoDeviceLabel: opt.getAttribute("data-label") || opt.text || "",
+        };
+      }
+
+      function setBtnBusy(btn, busy, label) {
+        if (!btn) return;
+        btn.disabled = Boolean(busy);
+        btn.classList.toggle("is-busy", Boolean(busy));
+        if (label) btn.textContent = label;
       }
 
       function bindInstagramButtons() {
@@ -466,36 +973,252 @@
         const prepare = document.getElementById("btnIgPrepare");
         const goLive = document.getElementById("btnIgGoLive");
         const open = document.getElementById("btnIgOpen");
+        const openLink = document.getElementById("btnIgOpenLink");
+        const refresh = document.getElementById("btnIgRefreshCams");
+        const virtualCam = document.getElementById("btnIgVirtualCam");
+        const aitumCam = document.getElementById("btnIgAitumCam");
+        const applyCam = document.getElementById("btnIgApplyCam");
+        const endLiveCard = document.getElementById("btnIgEndLiveCard");
+        refreshIgCameras();
+        if (refresh) refresh.onclick = () => refreshIgCameras();
+        const camSelect = document.getElementById("igCameraSelect");
+        if (camSelect) {
+          camSelect.onchange = async () => {
+            const cam = readIgCameraChoice();
+            config.platforms = config.platforms || {};
+            config.platforms.instagram = {
+              ...(config.platforms.instagram || {}),
+              ...cam,
+            };
+            await window.streamHub.saveConfig(config);
+            const res = await window.streamHub.instagramApplyCamera(cam);
+            const camHint = document.getElementById("igCamHint");
+            const msg = res?.trackLabel || res?.picked || cam.videoDeviceLabel || "caméra";
+            if (camHint) camHint.textContent = `Forcée: ${msg}`;
+            toast("Caméra IG", `Sélection: ${msg}`, res?.ok === false ? "warn" : "info");
+          };
+        }
+        if (applyCam) {
+          applyCam.onclick = async () => {
+            const cam = readIgCameraChoice();
+            const camHint = document.getElementById("igCamHint");
+            setBtnBusy(applyCam, true, "Appliquer…");
+            try {
+              config.platforms = config.platforms || {};
+              config.platforms.instagram = {
+                ...(config.platforms.instagram || {}),
+                ...cam,
+              };
+              await window.streamHub.saveConfig(config);
+              const res = await window.streamHub.instagramApplyCamera(cam);
+              if (res?.config) config = res.config;
+              const msg =
+                res?.trackLabel ||
+                res?.picked ||
+                res?.tip ||
+                (res?.ok
+                  ? `Forcée: ${cam.videoDeviceLabel || "caméra"}`
+                  : res?.reason || "échec");
+              if (camHint) camHint.textContent = msg;
+              toast("Caméra IG", msg, res?.ok === false ? "warn" : "info");
+            } finally {
+              setBtnBusy(applyCam, false, "Appliquer caméra");
+            }
+          };
+        }
+        const btnAitumSave = document.getElementById("btnAitumSaveIg");
+        const btnAitumPush = document.getElementById("btnAitumPushIgNow");
+        if (btnAitumSave) {
+          btnAitumSave.onclick = async () => {
+            config = collectConfigFromUi();
+            config.aitumVertical = {
+              ...(config.aitumVertical || {}),
+              pushIgCredentials: Boolean(document.getElementById("aitumPushIg")?.checked),
+              instagramOutputIndex: Number(document.getElementById("aitumIgIndex")?.value) || 0,
+              serverMode: document.getElementById("aitumIgServerMode")?.value || "producer",
+              igVia: "aitum",
+              autoStartStreaming: true,
+              width: 1080,
+              height: 1920,
+            };
+            await window.streamHub.saveConfig(config);
+            const hint = document.getElementById("aitumIgHint");
+            const msg = `Slot #${config.aitumVertical.instagramOutputIndex} · mode ${config.aitumVertical.serverMode} · push ${config.aitumVertical.pushIgCredentials ? "ON" : "OFF"}`;
+            if (hint) hint.textContent = msg;
+            toast("Aitum IG", msg, "info");
+          };
+        }
+        if (btnAitumPush) {
+          btnAitumPush.onclick = async () => {
+            const hint = document.getElementById("aitumIgHint");
+            if (hint) hint.textContent = "Push clé IG → Aitum…";
+            const res = await window.streamHub.aitumPushIg();
+            const msg = res?.ok
+              ? `OK slot #${res.index} · ${res.streamServer} · …${res.streamKeyTail || ""}`
+              : res?.reason || "échec — Prépare IG d’abord (clé) + ligne Streaming dans Aitum";
+            if (hint) hint.textContent = msg;
+            toast("Aitum IG", msg, res?.ok ? "info" : "warn");
+          };
+        }
+        if (endLiveCard) {
+          endLiveCard.onclick = () => document.getElementById("btnIgEndLive")?.click();
+        }
+        if (openLink) {
+          openLink.onclick = async () => {
+            const url =
+              document.getElementById("igStickyUrl")?.value?.trim() ||
+              document.querySelector('[data-pf="instagram.linkUrl"]')?.value?.trim() ||
+              config.platforms?.instagram?.linkUrl ||
+              "";
+            const res = await window.streamHub.openUrl(url);
+            toast(
+              "Lien",
+              res?.ok ? `Ouvert: ${res.url}` : res?.reason || "échec",
+              res?.ok ? "info" : "warn",
+            );
+          };
+        }
+        if (aitumCam) {
+          aitumCam.onclick = async () => {
+            setBtnBusy(aitumCam, true, "Aitum…");
+            try {
+              const res = await window.streamHub.aitumVerticalStart();
+              toast(
+                "Aitum Vertical",
+                res?.ok
+                  ? res.already
+                    ? "Caméra verticale déjà ON"
+                    : "Caméra verticale démarrée — Rafraîchir caméras"
+                  : res?.reason || "échec (Vertical Canvas + OBS WS :4455 ?)",
+                res?.ok ? "info" : "warn",
+              );
+              await new Promise((r) => setTimeout(r, 1800));
+              await refreshIgCameras();
+            } finally {
+              setBtnBusy(aitumCam, false, "▶ Démarrer caméra Aitum Vertical");
+            }
+          };
+        }
+        if (virtualCam) {
+          virtualCam.onclick = async () => {
+            const res = await window.streamHub.obsVirtualCamStart({ preferAitum: false });
+            toast(
+              "OBS",
+              res?.ok ? "VirtualCam OBS (secours) démarrée" : res?.reason || "échec VirtualCam",
+              res?.ok ? "info" : "warn",
+            );
+            await refreshIgCameras();
+          };
+        }
         if (prepare) {
           prepare.onclick = async () => {
-            config = collectConfigFromUi();
-            config.platforms.instagram = config.platforms.instagram || {};
-            config.platforms.instagram.enabled = true;
-            await window.streamHub.saveConfig(config);
-            if (hint) hint.textContent = "Ouverture Live Producer… (login si demandé)";
-            const title = document.getElementById("title").value.trim() || "Live AnimeBeat";
-            const res = await window.streamHub.instagramPrepare({ title });
-            if (res?.ok) {
-              config = res.config || (await window.streamHub.getConfig());
-              renderPlatforms();
-              if (hint) {
-                hint.textContent = `OK · ${res.rtmpUrl} · clé ${String(res.streamKey).slice(0, 16)}… — garde la fenêtre IG ouverte`;
+            if (prepare.disabled) return;
+            setBtnBusy(prepare, true, "Préparation…");
+            try {
+              config = collectConfigFromUi();
+              config.platforms.instagram = config.platforms.instagram || {};
+              config.platforms.instagram.enabled = true;
+              Object.assign(config.platforms.instagram, readIgCameraChoice());
+              config.platforms.instagram.startObsVirtualCam = true;
+              config.platforms.instagram.preferObsVirtualCamera = true;
+              await window.streamHub.saveConfig(config);
+              if (hint) hint.textContent = "Live Producer + lien + clé…";
+              const title = document.getElementById("title").value.trim() || "Live AnimeBeat";
+              const cam = readIgCameraChoice();
+              const linkUrl =
+                document.getElementById("igStickyUrl")?.value?.trim() ||
+                document.querySelector('[data-pf="instagram.linkUrl"]')?.value?.trim() ||
+                "";
+              const linkTitle =
+                document.getElementById("igStickyTitle")?.value?.trim() ||
+                document.querySelector('[data-pf="instagram.linkTitle"]')?.value?.trim() ||
+                "";
+              const res = await window.streamHub.instagramPrepare({
+                title,
+                ...cam,
+                linkUrl,
+                linkTitle,
+                game: document.getElementById("gameQuery")?.value?.trim() || "",
+              });
+              if (res?.ok) {
+                config = res.config || (await window.streamHub.getConfig());
+                const liveOk = res.continued?.instagram?.ok;
+                const aitumOk = res.aitumPush?.ok;
+                const aitumBit = aitumOk
+                  ? ` · Aitum slot #${res.aitumPush.index}`
+                  : res.aitumPush?.skipped
+                    ? ""
+                    : res.aitumPush
+                      ? ` · Aitum: ${res.aitumPush.reason || "échec"}`
+                      : "";
+                const aitumHint = document.getElementById("aitumIgHint");
+                if (aitumHint && res.aitumPush) {
+                  aitumHint.textContent = aitumOk
+                    ? `Clé poussée → slot #${res.aitumPush.index} · ${res.aitumPush.streamServer || ""}`
+                    : res.aitumPush.reason || "Aitum non mis à jour";
+                }
+                if (hint) {
+                  hint.textContent = liveOk
+                    ? `Direct IG lancé${aitumBit}`
+                    : `Préparé${aitumBit} · suite: ${res.continued?.instagram?.reason || res.continued?.reason || "attente flux / Relancer"}`;
+                }
+                toast(
+                  "Instagram",
+                  (liveOk ? "Direct lancé" : res.continued?.instagram?.reason || "Préparé — suite en attente du flux") +
+                    aitumBit,
+                  liveOk || aitumOk ? "info" : "warn",
+                );
+              } else {
+                if (hint) hint.textContent = res?.reason || "échec";
+                toast("Instagram", res?.reason || "échec", "warn");
               }
-              toast("Instagram", "URL + clé récupérées", "info");
-            } else {
-              if (hint) hint.textContent = res?.reason || "échec";
-              toast("Instagram", res?.reason || "échec", "warn");
+            } catch (err) {
+              if (hint) hint.textContent = err?.message || "erreur";
+              toast("Instagram", err?.message || "erreur", "warn");
+            } finally {
+              setBtnBusy(prepare, false, "▶ Préparer Instagram");
             }
           };
         }
         if (goLive) {
           goLive.onclick = async () => {
-            const res = await window.streamHub.instagramGoLive();
-            toast("Instagram", res?.ok ? "Lancer un direct cliqué" : res?.reason || "échec", res?.ok ? "info" : "warn");
+            if (goLive.disabled) return;
+            const prev = goLive.textContent;
+            setBtnBusy(goLive, true, "Go Live…");
+            try {
+              const res = await window.streamHub.instagramGoLive();
+              toast(
+                "Instagram",
+                res?.ok ? "Lancer un direct cliqué" : res?.reason || "échec",
+                res?.ok ? "info" : "warn",
+              );
+              if (hint) hint.textContent = res?.ok ? "Direct IG lancé" : res?.reason || "—";
+            } catch (err) {
+              toast("Instagram", err?.message || "erreur", "warn");
+            } finally {
+              setBtnBusy(goLive, false, prev || "Lancer un direct IG");
+            }
           };
         }
         if (open) {
-          open.onclick = () => window.streamHub.instagramOpen();
+          open.onclick = async () => {
+            try {
+              config = collectConfigFromUi();
+              Object.assign(config.platforms.instagram || {}, readIgCameraChoice());
+              await window.streamHub.saveConfig(config);
+              await window.streamHub.instagramOpen();
+              if (hint) hint.textContent = "Live Producer IG ouvert";
+            } catch (err) {
+              toast("Instagram", err?.message || "erreur", "warn");
+            }
+          };
+        }
+        const relaunch = document.getElementById("btnIgRelaunch");
+        if (relaunch) {
+          relaunch.onclick = () => {
+            if (typeof relaunchLive === "function") return relaunchLive(["instagram"]);
+            document.getElementById("btnRelaunchIg")?.click();
+          };
         }
       }
 
@@ -504,48 +1227,130 @@
         const prepare = document.getElementById("btnFbPrepare");
         const goLive = document.getElementById("btnFbGoLive");
         const open = document.getElementById("btnFbOpen");
+        const endLiveCard = document.getElementById("btnFbEndLiveCard");
+        if (endLiveCard) {
+          endLiveCard.onclick = () => document.getElementById("btnFbEndLive")?.click();
+        }
         if (prepare) {
           prepare.onclick = async () => {
+            if (prepare.disabled) return;
+            setBtnBusy(prepare, true, "Préparation…");
+            try {
             config = collectConfigFromUi();
             config.platforms.facebook = config.platforms.facebook || {};
             config.platforms.facebook.enabled = true;
             config.platforms.facebook.useLiveProducer = true;
-            config.platforms.facebook.pageUrl =
-              config.platforms.facebook.pageUrl ||
-              "https://www.facebook.com/profile.php?id=100036165385264";
-            config.platforms.facebook.pageId =
-              config.platforms.facebook.pageId || "100036165385264";
+            syncFbDestinationFromUi(config);
             await window.streamHub.saveConfig(config);
-            if (hint) hint.textContent = "Ouverture PAGE Facebook Live Producer…";
-            const title = document.getElementById("title").value.trim() || "Live AnimeBeat";
+            const dest = config.platforms.facebook.destination || "page";
+            if (hint) {
+              hint.textContent =
+                dest === "profile"
+                  ? "⚠ Ouverture Facebook Live PROFIL…"
+                  : dest === "group"
+                    ? "Ouverture Facebook Live GROUPE…"
+                    : "Ouverture Facebook Live PAGE…";
+            }
+            const title =
+              document.getElementById("fbLiveTitle")?.value?.trim() ||
+              document.getElementById("title").value.trim() ||
+              "Lilwen54 Tiktoklive/twitch/kick";
+            const description =
+              document.getElementById("fbLiveDesc")?.value?.trim() ||
+              config.platforms.facebook.lastDescription ||
+              "";
             const game =
+              document.getElementById("fbLiveGame")?.value?.trim() ||
               (typeof selectedGame !== "undefined" && selectedGame?.name) ||
               document.getElementById("gameQuery").value.trim() ||
               "";
-            const res = await window.streamHub.facebookPrepare({ title, game, autoGoLive: true });
+            if (hint) hint.textContent = "Préparer → nginx/OBS → Go Live…";
+            const res = await window.streamHub.facebookPrepare({
+              title,
+              description,
+              game,
+              destination: dest,
+              pageId: config.platforms.facebook.pageId,
+              pageUrl: config.platforms.facebook.pageUrl,
+              pageName: config.platforms.facebook.pageName,
+              businessAssetId: config.platforms.facebook.businessAssetId,
+              groupUrl: config.platforms.facebook.groupUrl,
+              groupId: config.platforms.facebook.groupId,
+              linkUrl: config.platforms.facebook.linkUrl,
+              linkTitle: config.platforms.facebook.linkTitle,
+              continueGoLive: true,
+            });
             if (res?.ok) {
               config = res.config || (await window.streamHub.getConfig());
-              renderPlatforms();
+              const cont = res.continued;
+              const liveOk = cont?.facebook?.ok;
               if (hint) {
-                hint.textContent = `PAGE OK · clé ${String(res.streamKey).slice(0, 18)}… · titre/jeu · attente Go Live`;
+                hint.textContent = liveOk
+                  ? `Direct FB lancé (${dest})`
+                  : `Préparé · suite: ${cont?.facebook?.reason || cont?.reason || "attente flux / Relancer"}`;
               }
-              toast("Facebook", "PAGE préparée (clé persistante)", "info");
+              toast(
+                "Facebook Live",
+                liveOk ? "Direct lancé" : cont?.facebook?.reason || "Préparé — suite en attente du flux",
+                liveOk ? "info" : "warn",
+              );
             } else {
               if (hint) hint.textContent = res?.reason || "échec";
-              toast("Facebook", res?.reason || "échec", "warn");
+              toast("Facebook Live", res?.reason || "échec", "warn");
+            }
+            } catch (err) {
+              if (hint) hint.textContent = err?.message || "erreur";
+              toast("Facebook Live", err?.message || "erreur", "warn");
+            } finally {
+              setBtnBusy(prepare, false, "▶ Préparer Facebook Live");
             }
           };
         }
         if (goLive) {
           goLive.onclick = async () => {
-            if (hint) hint.textContent = "Attente bouton Lancer un direct…";
-            const res = await window.streamHub.facebookGoLive({ waitForReady: true });
-            toast("Facebook", res?.ok ? "Direct lancé" : res?.reason || "échec", res?.ok ? "info" : "warn");
-            if (hint) hint.textContent = res?.ok ? "Direct lancé" : res?.reason || "—";
+            if (goLive.disabled) return;
+            const prev = goLive.textContent;
+            setBtnBusy(goLive, true, "Attente flux…");
+            try {
+              if (hint) hint.textContent = "Attente bouton Lancer un direct…";
+              const res = await window.streamHub.facebookGoLive({ waitForReady: true });
+              toast(
+                "Facebook Live",
+                res?.ok ? "Direct lancé — vérifie la destination" : res?.reason || "échec",
+                res?.ok ? "info" : "warn",
+              );
+              if (hint) {
+                hint.textContent = res?.ok ? "Direct lancé" : res?.reason || "—";
+              }
+            } catch (err) {
+              if (hint) hint.textContent = err?.message || "erreur";
+              toast("Facebook Live", err?.message || "erreur", "warn");
+            } finally {
+              setBtnBusy(goLive, false, prev || "Lancer un direct FB");
+            }
           };
         }
         if (open) {
-          open.onclick = () => window.streamHub.facebookOpen();
+          open.onclick = async () => {
+            try {
+              config = collectConfigFromUi();
+              syncFbDestinationFromUi(config);
+              await window.streamHub.saveConfig(config);
+              if (hint) hint.textContent = "Ouverture Live Producer…";
+              const res = await window.streamHub.facebookOpen();
+              if (hint) hint.textContent = res?.ok === false ? res.reason || "échec" : "Live Producer ouvert";
+            } catch (err) {
+              if (hint) hint.textContent = err?.message || "erreur";
+              toast("Facebook", err?.message || "erreur", "warn");
+            }
+          };
+        }
+        const relaunch = document.getElementById("btnFbRelaunch");
+        if (relaunch) {
+          relaunch.onclick = () => {
+            if (typeof relaunchLive === "function") return relaunchLive(["facebook"]);
+            document.getElementById("btnRelaunchFb")?.click();
+          };
         }
       }
 
@@ -562,14 +1367,20 @@
             ["rtmpUrl", "RTMP URL"],
             ["streamKey", "Stream key", "password"],
           ]),
-          platformFields("facebook", "Facebook PAGE", [
-            ["pageUrl", "URL de la PAGE (pas le profil perso)"],
+          platformFields("facebook", "Facebook Live", [
+            ["pageUrl", "URL PAGE Lilwen54"],
             ["pageId", "Page ID"],
+            ["groupUrl", "URL groupe (si destination=group)"],
+            ["personalProfileUrl", "URL profil perso (DiddySong)"],
+            ["linkUrl", "Lien sticky URL"],
+            ["linkTitle", "Titre du lien"],
             ["rtmpUrl", "RTMP URL (auto)"],
             ["streamKey", "Clé persistante (auto)", "password"],
-            ["accessToken", "Token Graph API (optionnel / fallback)", "password"],
+            ["accessToken", "Token Graph API PAGE (même champ que § Infos FB)", "password"],
           ]),
           platformFields("instagram", "Instagram", [
+            ["linkUrl", "Lien sticky (URL)"],
+            ["linkTitle", "Titre du lien (max 30)"],
             ["rtmpUrl", "RTMP URL (auto)"],
             ["streamKey", "Stream key Live Producer (auto)", "password"],
           ]),
@@ -612,6 +1423,257 @@
         document.getElementById("sbActionGame").value = config.streamerBot?.actions?.setGame || "";
         document.getElementById("sbActionBoth").value = config.streamerBot?.actions?.setTitleAndGame || "";
         document.getElementById("sbEnabled").checked = config.streamerBot?.enabled !== false;
+        document.getElementById("companionsAutoLaunch").checked =
+          config.companions?.autoLaunch !== false;
+        document.getElementById("skipStunnel").checked = Boolean(config.companions?.skip?.stunnel);
+        document.getElementById("skipObs").checked = Boolean(config.companions?.skip?.obs);
+        document.getElementById("skipSb").checked = Boolean(config.companions?.skip?.streamerBot);
+        document.getElementById("skipSsn").checked = Boolean(config.companions?.skip?.socialstream);
+        document.getElementById("pathStunnel").value =
+          config.appPaths?.stunnel ||
+          "C:\\Users\\Diddy\\Documents\\Stream\\stunnel\\bin\\stunnel.exe";
+        const guard = document.getElementById("guardAutoGoLive");
+        if (guard) guard.checked = config.streamGuard?.autoGoLive === true;
+        const igUrl = document.getElementById("igStickyUrl");
+        const igTitle = document.getElementById("igStickyTitle");
+        if (igUrl) {
+          igUrl.value =
+            config.platforms?.instagram?.linkUrl || "https://leonida-vice.com";
+        }
+        if (igTitle) {
+          igTitle.value = config.platforms?.instagram?.linkTitle || "Site GTA 6";
+        }
+        const fbTitle = document.getElementById("fbLiveTitle");
+        const fbGame = document.getElementById("fbLiveGame");
+        const fbDesc = document.getElementById("fbLiveDesc");
+        if (fbTitle) {
+          fbTitle.value =
+            config.platforms?.facebook?.lastTitle ||
+            document.getElementById("title")?.value ||
+            "Lilwen54 Tiktoklive/twitch/kick";
+        }
+        if (fbDesc) {
+          fbDesc.value =
+            config.platforms?.facebook?.lastDescription ||
+            "Lilwen54 sur Kick/Twitch/TiktokLive/Youtube Tous ce passe ici : https://linktr.ee/lilwen54 et ici : DISCORD : https://discord.gg/Fns7JNb7VG";
+        }
+        if (fbGame) {
+          fbGame.value =
+            config.platforms?.facebook?.lastGame ||
+            document.getElementById("gameQuery")?.value ||
+            "";
+        }
+        const fbDest = document.getElementById("fbDestination");
+        if (fbDest) fbDest.value = config.platforms?.facebook?.destination || "page";
+        const fbGroup = document.getElementById("fbGroupUrl");
+        if (fbGroup) {
+          fbGroup.value =
+            config.platforms?.facebook?.groupUrl ||
+            config.platforms?.facebook?.groupId ||
+            "";
+        }
+        const fbUrl = document.getElementById("fbStickyUrl");
+        const fbLTitle = document.getElementById("fbStickyTitle");
+        if (fbUrl) {
+          fbUrl.value = config.platforms?.facebook?.linkUrl || "https://leonida-vice.com";
+        }
+        if (fbLTitle) {
+          fbLTitle.value = config.platforms?.facebook?.linkTitle || "Site GTA 6";
+        }
+        const fbGraphTok = document.getElementById("fbGraphToken");
+        const fbGraphPid = document.getElementById("fbGraphPageId");
+        const fbGraphHint = document.getElementById("fbGraphHint");
+        if (fbGraphTok) fbGraphTok.value = config.platforms?.facebook?.accessToken || "";
+        if (fbGraphPid) {
+          fbGraphPid.value =
+            config.platforms?.facebook?.pageId || "100036165385264";
+        }
+        if (fbGraphHint) {
+          fbGraphHint.textContent = config.platforms?.facebook?.accessToken
+            ? "Token présent — Tester Graph pour valider."
+            : "Token vide = Producer UI seulement.";
+        }
+        renderFbSavedDestinations();
+        updateIgStickyPreview();
+        updateFbStickyPreview();
+        updateFbDestinationUi();
+      }
+
+      function ensureFbLists(fb) {
+        fb.savedPages = Array.isArray(fb.savedPages) ? fb.savedPages : [];
+        fb.savedGroups = Array.isArray(fb.savedGroups) ? fb.savedGroups : [];
+        if (!fb.savedPages.length && fb.pageId) {
+          fb.savedPages.push({
+            id: String(fb.pageId),
+            name: fb.pageName || "Page",
+            pageUrl: fb.pageUrl || `https://www.facebook.com/profile.php?id=${fb.pageId}`,
+            businessAssetId: fb.businessAssetId || "",
+          });
+        }
+        return fb;
+      }
+
+      function parseFbPageId(raw) {
+        const s = String(raw || "").trim();
+        if (/^\d{6,}$/.test(s)) return s;
+        const m =
+          s.match(/[?&]id=(\d{6,})/) ||
+          s.match(/profile\.php\?id=(\d{6,})/) ||
+          s.match(/facebook\.com\/(?:pages\/[^/]+\/)?(\d{6,})/) ||
+          s.match(/\/(\d{6,})\/?$/);
+        return m ? m[1] : "";
+      }
+
+      function parseFbGroup(raw) {
+        const s = String(raw || "").trim();
+        if (/^\d{6,}$/.test(s)) {
+          return { id: s, url: `https://www.facebook.com/groups/${s}/` };
+        }
+        const m = s.match(/groups\/(?:[^/?#]+\/)?(\d{6,})/) || s.match(/groups\/([^/?#]+)/);
+        if (m && /^\d{6,}$/.test(m[1])) {
+          return { id: m[1], url: `https://www.facebook.com/groups/${m[1]}/` };
+        }
+        if (/facebook\.com\/groups\//i.test(s)) {
+          return { id: "", url: s.endsWith("/") ? s : `${s}/` };
+        }
+        return { id: "", url: s };
+      }
+
+      function renderFbSavedDestinations() {
+        const fb = ensureFbLists((config.platforms = config.platforms || {}).facebook || {});
+        config.platforms.facebook = fb;
+        const pageSel = document.getElementById("fbSavedPage");
+        const groupSel = document.getElementById("fbSavedGroup");
+        if (pageSel) {
+          const cur = String(fb.pageId || "");
+          pageSel.innerHTML = fb.savedPages
+            .map(
+              (p) =>
+                `<option value="${String(p.id).replace(/"/g, "")}" ${String(p.id) === cur ? "selected" : ""}>${(p.name || p.id).replace(/</g, "")}</option>`,
+            )
+            .join("") || `<option value="">— aucune page —</option>`;
+        }
+        if (groupSel) {
+          const curG = String(fb.groupId || fb.groupUrl || "");
+          groupSel.innerHTML = fb.savedGroups
+            .map((g) => {
+              const val = g.id || g.groupUrl || g.url || "";
+              const selected =
+                val && (val === curG || g.id === fb.groupId || (g.groupUrl || g.url) === fb.groupUrl);
+              return `<option value="${String(val).replace(/"/g, "")}" ${selected ? "selected" : ""}>${(g.name || val).replace(/</g, "")}</option>`;
+            })
+            .join("") || `<option value="">— aucun groupe —</option>`;
+        }
+        const pageHint = document.getElementById("fbPageHint");
+        if (pageHint) {
+          pageHint.textContent = fb.pageName
+            ? `Active: ${fb.pageName} · id ${fb.pageId || "—"}`
+            : "Choisis ou enregistre une page";
+        }
+        const groupHint = document.getElementById("fbGroupHint");
+        if (groupHint) {
+          groupHint.textContent = fb.groupUrl || fb.groupId
+            ? `Actif: ${fb.groupUrl || fb.groupId}`
+            : "Choisis ou enregistre un groupe";
+        }
+      }
+
+      function applyFbSavedPage(pageId) {
+        const fb = ensureFbLists((config.platforms.facebook = config.platforms.facebook || {}));
+        const page = fb.savedPages.find((p) => String(p.id) === String(pageId));
+        if (!page) return false;
+        fb.destination = "page";
+        fb.pageId = String(page.id);
+        fb.pageName = page.name || fb.pageName || "Page";
+        fb.pageUrl =
+          page.pageUrl || `https://www.facebook.com/profile.php?id=${page.id}`;
+        if (page.businessAssetId) fb.businessAssetId = page.businessAssetId;
+        document.getElementById("fbDestination").value = "page";
+        const hint = document.getElementById("fbPageHint");
+        if (hint) hint.textContent = `Active: ${fb.pageName} · id ${fb.pageId}`;
+        updateFbDestinationUi();
+        return true;
+      }
+
+      function applyFbSavedGroup(key) {
+        const fb = ensureFbLists((config.platforms.facebook = config.platforms.facebook || {}));
+        const group = fb.savedGroups.find(
+          (g) => String(g.id) === String(key) || String(g.groupUrl || g.url) === String(key),
+        );
+        if (!group) return false;
+        fb.destination = "group";
+        fb.groupId = group.id || "";
+        fb.groupUrl = group.groupUrl || group.url || "";
+        document.getElementById("fbDestination").value = "group";
+        const input = document.getElementById("fbGroupUrl");
+        if (input) input.value = fb.groupUrl || fb.groupId || "";
+        const hint = document.getElementById("fbGroupHint");
+        if (hint) hint.textContent = `Actif: ${group.name || fb.groupUrl}`;
+        updateFbDestinationUi();
+        return true;
+      }
+
+      function updateFbDestinationUi() {
+        const dest = document.getElementById("fbDestination")?.value || "page";
+        const warn = document.getElementById("fbProfileWarn");
+        const groupFields = document.getElementById("fbGroupFields");
+        const pageFields = document.getElementById("fbPageFields");
+        if (warn) warn.style.display = dest === "profile" ? "block" : "none";
+        if (groupFields) groupFields.style.display = dest === "group" ? "block" : "none";
+        if (pageFields) pageFields.style.display = dest === "page" ? "block" : "none";
+      }
+
+      function updateFbStickyPreview() {
+        const el = document.getElementById("fbStickyPreview");
+        if (!el) return;
+        const u = document.getElementById("fbStickyUrl")?.value?.trim() || "—";
+        const t = document.getElementById("fbStickyTitle")?.value?.trim() || "—";
+        const dest = document.getElementById("fbDestination")?.value || "page";
+        el.textContent = `Aperçu FB (${dest}): « ${t} » → ${u.replace(/^https?:\/\//i, "")}`;
+      }
+
+      function syncFbDestinationFromUi(cfg) {
+        const fb = ensureFbLists((cfg.platforms.facebook = cfg.platforms.facebook || {}));
+        fb.destination = document.getElementById("fbDestination")?.value || "page";
+        fb.pageId = fb.pageId || "100036165385264";
+        fb.pageUrl =
+          fb.pageUrl || "https://www.facebook.com/profile.php?id=100036165385264";
+        fb.pageName = fb.pageName || "Lilwen54";
+        fb.personalProfileUrl =
+          fb.personalProfileUrl || "https://www.facebook.com/DiddySong/";
+        fb.personalUsername = fb.personalUsername || "DiddySong";
+        const groupRaw = document.getElementById("fbGroupUrl")?.value?.trim() || "";
+        if (groupRaw) {
+          const parsed = parseFbGroup(groupRaw);
+          fb.groupUrl = parsed.url || groupRaw;
+          if (parsed.id) fb.groupId = parsed.id;
+        }
+        fb.linkUrl =
+          document.getElementById("fbStickyUrl")?.value?.trim() || fb.linkUrl || "";
+        fb.linkTitle =
+          document.getElementById("fbStickyTitle")?.value?.trim() || fb.linkTitle || "";
+        fb.lastTitle =
+          document.getElementById("fbLiveTitle")?.value?.trim() || fb.lastTitle || "";
+        fb.lastDescription =
+          document.getElementById("fbLiveDesc")?.value?.trim() || fb.lastDescription || "";
+        fb.lastGame =
+          document.getElementById("fbLiveGame")?.value?.trim() || fb.lastGame || "";
+        const graphTok = document.getElementById("fbGraphToken")?.value?.trim();
+        const graphPid = document.getElementById("fbGraphPageId")?.value?.trim();
+        if (graphTok !== undefined) fb.accessToken = graphTok || fb.accessToken || "";
+        if (graphPid) {
+          const pid = parseFbPageId(graphPid) || graphPid;
+          if (pid) fb.pageId = pid;
+        }
+        return fb;
+      }
+
+      function updateIgStickyPreview() {
+        const el = document.getElementById("igStickyPreview");
+        if (!el) return;
+        const u = document.getElementById("igStickyUrl")?.value?.trim() || "—";
+        const t = document.getElementById("igStickyTitle")?.value?.trim() || "—";
+        el.textContent = `Aperçu IG: « ${t} » → ${u.replace(/^https?:\/\//i, "")}`;
       }
 
       function collectConfigFromUi() {
@@ -650,6 +1712,57 @@
           },
         };
 
+        next.appPaths = {
+          ...(next.appPaths || {}),
+          stunnel: document.getElementById("pathStunnel").value.trim(),
+        };
+        next.companions = {
+          ...(next.companions || {}),
+          autoLaunch: document.getElementById("companionsAutoLaunch").checked,
+          skip: {
+            stunnel: document.getElementById("skipStunnel").checked,
+            obs: document.getElementById("skipObs").checked,
+            streamerBot: document.getElementById("skipSb").checked,
+            socialstream: document.getElementById("skipSsn").checked,
+          },
+        };
+        next.streamGuard = {
+          ...(next.streamGuard || {}),
+          autoGoLive: Boolean(document.getElementById("guardAutoGoLive")?.checked),
+        };
+        next.aitumVertical = {
+          ...(next.aitumVertical || {}),
+          pushIgCredentials:
+            document.getElementById("aitumPushIg") != null
+              ? Boolean(document.getElementById("aitumPushIg").checked)
+              : next.aitumVertical?.pushIgCredentials !== false,
+          instagramOutputIndex:
+            document.getElementById("aitumIgIndex") != null
+              ? Number(document.getElementById("aitumIgIndex").value) || 0
+              : Number(next.aitumVertical?.instagramOutputIndex ?? 0),
+          serverMode:
+            document.getElementById("aitumIgServerMode")?.value ||
+            next.aitumVertical?.serverMode ||
+            "producer",
+          width: next.aitumVertical?.width || 1080,
+          height: next.aitumVertical?.height || 1920,
+          stunnelUrl: next.aitumVertical?.stunnelUrl || "rtmp://127.0.0.1:19351/rtmp",
+          autoStartStreaming: next.aitumVertical?.autoStartStreaming !== false,
+          igVia: next.aitumVertical?.igVia || "aitum",
+        };
+
+        next.platforms = next.platforms || {};
+        next.platforms.instagram = next.platforms.instagram || {};
+        const stickyUrl = document.getElementById("igStickyUrl")?.value?.trim();
+        const stickyTitle = document.getElementById("igStickyTitle")?.value?.trim();
+        if (stickyUrl != null) next.platforms.instagram.linkUrl = stickyUrl;
+        if (stickyTitle != null) next.platforms.instagram.linkTitle = stickyTitle.slice(0, 30);
+        // Sync champs plateforme IG
+        const pfUrl = document.querySelector('[data-pf="instagram.linkUrl"]');
+        const pfTitle = document.querySelector('[data-pf="instagram.linkTitle"]');
+        if (pfUrl && stickyUrl) pfUrl.value = stickyUrl;
+        if (pfTitle && stickyTitle) pfTitle.value = stickyTitle.slice(0, 30);
+
         document.querySelectorAll("[data-en]").forEach((el) => {
           const key = el.getAttribute("data-en");
           next.platforms[key] = next.platforms[key] || {};
@@ -662,6 +1775,14 @@
         });
         next.platforms.tiktok.enabled = true;
         next.platforms.tiktok.mode = "external_studio";
+        const igCam = readIgCameraChoice();
+        if (igCam.videoDeviceId || igCam.videoDeviceLabel) {
+          next.platforms.instagram = next.platforms.instagram || {};
+          Object.assign(next.platforms.instagram, igCam);
+          next.platforms.instagram.startObsVirtualCam = true;
+          next.platforms.instagram.preferObsVirtualCamera = true;
+        }
+        syncFbDestinationFromUi(next);
         return next;
       }
 
@@ -751,15 +1872,104 @@
         await refreshObsDashboard();
       }
 
+      async function showAppVersion() {
+        try {
+          const info = await window.streamHub.getAppInfo();
+          const ver = info?.version || "?";
+          const ch = info?.channel || "?";
+          const stamp = info?.codeStamp || info?.startedStamp || "";
+          const titleStamp = info?.titleStamp || `v${ver} · ${stamp} · ${ch}`;
+          const el = document.getElementById("appVersion");
+          if (el) el.textContent = stamp ? `v${ver} · ${stamp}` : `v${ver}`;
+          const pill = document.getElementById("verPill");
+          if (pill) {
+            pill.textContent = stamp ? `v${ver} · ${stamp} · ${ch}` : `v${ver} · ${ch}`;
+            pill.className = `pill ${ch === "dev" ? "ok" : "warn"}`;
+            pill.title = `${info?.appPath || ""}\nLancement: ${info?.startedStamp || ""}`;
+          }
+          const sub = document.getElementById("appChannel");
+          if (sub) {
+            sub.textContent =
+              ch === "dev"
+                ? `Code · ${titleStamp} · F:\\AnimeBeat Arena\\desktop`
+                : `Installé · ${titleStamp} — peut être obsolète vs le dossier desktop`;
+          }
+          document.title = `AnimeBeat Stream Command ${titleStamp}`;
+        } catch {
+          /* ignore */
+        }
+      }
+
+      function renderUpdateStatus(st) {
+        const hint = document.getElementById("updHint");
+        const en = document.getElementById("updEnabled");
+        if (en && st?.settings) en.checked = st.settings.enabled !== false;
+        if (!hint) return;
+        const bits = [
+          st?.isPackaged ? "installé" : "DEV",
+          st?.currentVersion ? `v${st.currentVersion}` : null,
+          st?.availableVersion ? `dispo v${st.availableVersion}` : null,
+          st?.message || st?.mode || "—",
+        ].filter(Boolean);
+        hint.textContent = bits.join(" · ");
+      }
+
+      async function refreshUpdateStatus() {
+        try {
+          const st = await window.streamHub.updateStatus();
+          renderUpdateStatus(st);
+          return st;
+        } catch {
+          return null;
+        }
+      }
+
+      async function renderLiveLinks(prefetched) {
+        const root = document.getElementById("liveLinksList");
+        if (!root || !window.streamHub?.getLiveLinks) return;
+        const links = prefetched || (await window.streamHub.getLiveLinks());
+        root.innerHTML = "";
+        (links || []).forEach((link) => {
+          const row = document.createElement("div");
+          row.className = `live-link-row${link.isOnAir ? " onair" : ""}`;
+          row.innerHTML = `
+            <span class="name"></span>
+            <span class="url"></span>
+            <button type="button" data-act="copy">Copier</button>
+            <button type="button" class="primary" data-act="open">Ouvrir</button>
+          `;
+          row.querySelector(".name").textContent = link.title || link.id;
+          row.querySelector(".url").textContent = link.url || "";
+          row.querySelector(".url").title = link.url || "";
+          row.querySelector('[data-act="copy"]').onclick = async () => {
+            await window.streamHub.copyText(link.url);
+            toast("Lien", `Copié: ${link.title}`, "info");
+          };
+          row.querySelector('[data-act="open"]').onclick = async () => {
+            await window.streamHub.openUrl(link.url);
+          };
+          root.appendChild(row);
+        });
+        const igUser = document.getElementById("igUsername");
+        if (igUser && config?.platforms?.instagram) {
+          igUser.value = config.platforms.instagram.username || "";
+        }
+      }
+
       async function init() {
+        await showAppVersion();
         config = await window.streamHub.getConfig();
         renderPresets();
         renderPlatforms();
         fillObsFields();
+        await renderLiveLinks();
+        await refreshCompanionsHint();
         await window.streamHub.obsConnect();
         if (config.socialStreamNinja?.enabled) await window.streamHub.ssnConnect();
         if (config.streamerBot?.enabled) await window.streamHub.streamerbotConnect();
         await refreshStatus();
+        await refreshUpdateStatus();
+        setTimeout(refreshCompanionsHint, 4000);
         window.streamHub.onEvent((ev) => {
           if (ev.type === "toast") toast(ev.title, ev.body, ev.level);
           if (
@@ -792,7 +2002,56 @@
           }
           if (ev.type === "facebook-go-live") {
             const hint = document.getElementById("fbHint");
-            if (hint) hint.textContent = "Direct Facebook lancé";
+            if (hint) {
+              hint.textContent = ev.liveUrl
+                ? `Direct FB · ${ev.liveUrl}`
+                : "Direct Facebook lancé — récupération du lien…";
+            }
+            if (ev.liveUrl) toast("Facebook LIVE", ev.liveUrl, "info");
+            window.streamHub.getConfig().then((c) => {
+              config = c;
+              renderLiveLinks();
+            });
+          }
+          if (ev.type === "instagram-go-live") {
+            const hint = document.getElementById("igHint");
+            if (hint) {
+              hint.textContent = ev.liveUrl
+                ? `Direct IG · ${ev.liveUrl}`
+                : "Direct Instagram lancé — récupération du lien…";
+            }
+            if (ev.liveUrl) toast("Instagram LIVE", ev.liveUrl, "info");
+            window.streamHub.getConfig().then((c) => {
+              config = c;
+              renderLiveLinks();
+            });
+          }
+          if (ev.type === "facebook-end-live" || ev.type === "instagram-end-live") {
+            const isFb = ev.type === "facebook-end-live";
+            const hint = document.getElementById(isFb ? "fbHint" : "igHint");
+            if (hint) hint.textContent = "Direct terminé (OBS non coupé)";
+            toast(isFb ? "Facebook" : "Instagram", "Direct terminé — OBS continue", "info");
+            window.streamHub.getConfig().then((c) => {
+              config = c;
+              renderLiveLinks();
+            });
+          }
+          if (ev.type === "app-update") {
+            renderUpdateStatus(ev);
+            if (ev.mode === "ready" || ev.mode === "dev-newer") {
+              toast("MàJ", ev.message || "Mise à jour disponible", "info");
+            }
+          }
+          if (ev.type === "live-links-updated") {
+            if (ev.links) renderLiveLinks(ev.links);
+            else renderLiveLinks();
+            if (ev.liveUrl) {
+              toast(
+                ev.platform === "facebook" ? "Lien FB LIVE" : "Lien IG LIVE",
+                ev.liveUrl,
+                "info",
+              );
+            }
           }
         });
       }
@@ -816,12 +2075,24 @@
         }, 350);
       });
 
-      document.getElementById("btnApply").onclick = async () => {
+      function selectedTitleTargets() {
+        return [...document.querySelectorAll(".titleTarget:checked")].map((el) => el.value);
+      }
+
+      function setTitleTargets(list) {
+        const set = new Set(list || []);
+        document.querySelectorAll(".titleTarget").forEach((el) => {
+          el.checked = set.has(el.value);
+        });
+      }
+
+      async function applyTitlesTo(platforms) {
         config = collectConfigFromUi();
         await window.streamHub.saveConfig(config);
         const payload = {
           title: document.getElementById("title").value,
           gameQuery: document.getElementById("gameQuery").value,
+          platforms,
         };
         if (selectedGame) {
           payload.gameOverride = {
@@ -830,12 +2101,242 @@
           };
         }
         const res = await window.streamHub.applyTitles(payload);
-        await window.streamHub.syncObsScreens(Number(document.getElementById("screenCount").value));
+        if (platforms.includes("obs") || platforms === "all") {
+          await window.streamHub.syncObsScreens(Number(document.getElementById("screenCount").value));
+        }
         if (res?.gameName) {
           selectedGame = { name: res.gameName, twitchId: res.twitchGameId, platform: "twitch" };
           updateSelectedGameLabel();
         }
+        const fbTitle = document.getElementById("fbLiveTitle");
+        const fbGame = document.getElementById("fbLiveGame");
+        if (fbTitle && (platforms.includes("facebook") || platforms === "all")) {
+          fbTitle.value = res?.platformTitles?.facebook || payload.title;
+        }
+        if (fbGame && res?.gameName) fbGame.value = res.gameName;
+        const bits = [];
+        if (res?.liveApplied?.length) bits.push(`live ${res.liveApplied.join(",")}`);
+        if (res?.savedOnly?.length) bits.push(`sauvé ${res.savedOnly.join(",")}`);
+        if (res?.failedPlatforms?.length) bits.push(`échec ${res.failedPlatforms.join(",")}`);
+        toast(
+          "Titres",
+          bits.join(" · ") || (res?.ok ? "OK" : res?.reason || "échec"),
+          res?.failedPlatforms?.length ? "warn" : "info",
+        );
+        const hint = document.getElementById("liveVerifyHint");
+        if (hint && bits.length) hint.textContent = bits.join(" · ");
+        return res;
+      }
+
+      async function runLiveVerify(probe) {
+        const hint = document.getElementById("liveVerifyHint");
+        if (hint) hint.textContent = probe ? "Probe en cours…" : "Vérification…";
+        config = collectConfigFromUi();
+        await window.streamHub.saveConfig(config);
+        const res = await window.streamHub.verifyLiveUpdates({
+          probe: Boolean(probe),
+          title: document.getElementById("title").value.trim(),
+          gameQuery: document.getElementById("gameQuery").value.trim(),
+        });
+        const lines = Object.entries(res?.channels || {}).map(([k, v]) => {
+          return `${k}: ${v.ok ? "OK" : "—"} (${v.detail})`;
+        });
+        if (res?.tips?.length) lines.push(...res.tips.map((t) => `→ ${t}`));
+        if (hint) hint.textContent = lines.join(" · ");
+        toast(
+          probe ? "Probe live" : "Vérif live",
+          [
+            res?.summary?.canLiveObs ? "OBS" : null,
+            res?.summary?.canLiveSb ? "SB" : null,
+            res?.summary?.canLiveFacebook ? "FB" : null,
+            res?.summary?.canLiveInstagram ? "IG" : null,
+          ]
+            .filter(Boolean)
+            .join(" · ") || "état lu",
+          res?.summary?.canLiveObs || res?.summary?.canLiveSb ? "info" : "warn",
+        );
+        return res;
+      }
+
+      document.getElementById("btnApply").onclick = async () => {
+        const platforms = selectedTitleTargets();
+        if (!platforms.length) {
+          toast("Titres", "Coche au moins une plateforme", "warn");
+          return;
+        }
+        await applyTitlesTo(platforms);
       };
+      document.getElementById("btnTargetsAll")?.addEventListener("click", () => {
+        setTitleTargets(["twitch", "kick", "obs", "streamerbot", "facebook", "instagram"]);
+      });
+      document.getElementById("btnTargetsNone")?.addEventListener("click", () => setTitleTargets([]));
+      document.querySelectorAll("[data-apply-one]").forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          await applyTitlesTo([btn.getAttribute("data-apply-one")]);
+        });
+      });
+
+      async function pushLiveMeta(platform, opts = {}) {
+        config = collectConfigFromUi();
+        await window.streamHub.saveConfig(config);
+        const title =
+          platform === "facebook"
+            ? document.getElementById("fbLiveTitle")?.value?.trim() ||
+              document.getElementById("title").value.trim()
+            : document.getElementById("title").value.trim() ||
+              config.platforms?.instagram?.lastTitle ||
+              "";
+        const description =
+          platform === "facebook"
+            ? document.getElementById("fbLiveDesc")?.value?.trim() || ""
+            : "";
+        const game =
+          platform === "facebook"
+            ? document.getElementById("fbLiveGame")?.value?.trim() ||
+              selectedGame?.name ||
+              document.getElementById("gameQuery").value.trim()
+            : selectedGame?.name || document.getElementById("gameQuery").value.trim();
+        const linkUrl =
+          platform === "facebook"
+            ? document.getElementById("fbStickyUrl")?.value?.trim()
+            : document.getElementById("igStickyUrl")?.value?.trim();
+        const linkTitle =
+          platform === "facebook"
+            ? document.getElementById("fbStickyTitle")?.value?.trim()
+            : document.getElementById("igStickyTitle")?.value?.trim();
+        const res = await window.streamHub.pushLiveMeta({
+          platform,
+          title,
+          description,
+          game,
+          linkUrl,
+          linkTitle,
+          updateTitle: opts.updateTitle !== false,
+          updateLink: opts.updateLink !== false,
+        });
+        if (res?.config) config = res.config;
+        const parts = [];
+        if (res?.title?.ok) parts.push("titre OK");
+        else if (res?.title?.reason) parts.push(`titre: ${res.title.reason}`);
+        if (res?.link?.ok) parts.push("lien OK");
+        else if (res?.link?.reason) parts.push(`lien: ${res.link.reason}`);
+        const label = platform === "facebook" ? "Facebook" : "Instagram";
+        const msg =
+          parts.join(" · ") ||
+          res?.reason ||
+          (res?.live
+            ? "poussé (live ou Producer)"
+            : res?.saved
+              ? "sauvé en config"
+              : "échec");
+        toast(label, msg, res?.live || res?.ok ? "info" : "warn");
+        const hint = document.getElementById("liveVerifyHint");
+        if (hint) hint.textContent = `${label}: ${msg}`;
+        return res;
+      }
+
+      document.getElementById("btnLiveTitles")?.addEventListener("click", async () => {
+        await applyTitlesTo(["facebook", "instagram"]);
+      });
+      document.getElementById("btnVerifyLive")?.addEventListener("click", () => runLiveVerify(false));
+      document.getElementById("btnProbeLive")?.addEventListener("click", () => runLiveVerify(true));
+      document.getElementById("btnIgSaveLink")?.addEventListener("click", async () => {
+        config = collectConfigFromUi();
+        const url = document.getElementById("igStickyUrl")?.value?.trim() || "";
+        const title = document.getElementById("igStickyTitle")?.value?.trim() || "";
+        config.platforms.instagram = {
+          ...(config.platforms.instagram || {}),
+          linkUrl: url,
+          linkTitle: title,
+        };
+        await window.streamHub.saveConfig(config);
+        updateIgStickyPreview();
+        toast("Instagram", "Lien sauvé — utilise Pousser lien pour l’appliquer tout de suite", "info");
+      });
+      document.getElementById("btnIgPushLink")?.addEventListener("click", () =>
+        pushLiveMeta("instagram", { updateTitle: false, updateLink: true }),
+      );
+      document.getElementById("btnIgPushTitle")?.addEventListener("click", () =>
+        pushLiveMeta("instagram", { updateTitle: true, updateLink: false }),
+      );
+      document.getElementById("btnFbSaveInfo")?.addEventListener("click", async () => {
+        config = collectConfigFromUi();
+        syncFbDestinationFromUi(config);
+        await window.streamHub.saveConfig(config);
+        updateFbStickyPreview();
+        toast("Facebook", "Infos FB sauvées", "info");
+      });
+      document.getElementById("btnUpdCheck")?.addEventListener("click", async () => {
+        const hint = document.getElementById("updHint");
+        if (hint) hint.textContent = "Vérification…";
+        const st = await window.streamHub.updateCheck();
+        renderUpdateStatus(st);
+        toast("MàJ", st?.message || (st?.ok ? "OK" : "échec"), st?.ok === false ? "warn" : "info");
+      });
+      document.getElementById("btnUpdInstall")?.addEventListener("click", async () => {
+        const res = await window.streamHub.updateInstall();
+        toast(
+          "MàJ",
+          res?.ok ? "Redémarrage pour installer…" : res?.reason || "rien à installer",
+          res?.ok ? "info" : "warn",
+        );
+      });
+      document.getElementById("btnUpdOpenRelease")?.addEventListener("click", () =>
+        window.streamHub.updateOpenRelease(),
+      );
+      document.getElementById("updEnabled")?.addEventListener("change", async (e) => {
+        const res = await window.streamHub.updateSettings({
+          enabled: Boolean(e.target.checked),
+        });
+        renderUpdateStatus({ ...(await window.streamHub.updateStatus()), settings: res?.settings });
+        toast("MàJ", e.target.checked ? "Auto-check ON" : "Auto-check OFF", "info");
+      });
+
+      document.getElementById("btnFbSaveGraph")?.addEventListener("click", async () => {
+        config = collectConfigFromUi();
+        syncFbDestinationFromUi(config);
+        await window.streamHub.saveConfig(config);
+        const hint = document.getElementById("fbGraphHint");
+        const has = Boolean(config.platforms?.facebook?.accessToken);
+        if (hint) {
+          hint.textContent = has
+            ? "Token Graph sauvé — clique Tester Graph."
+            : "Token vide = Producer UI seulement.";
+        }
+        toast("Facebook Graph", has ? "Token sauvé" : "Token vidé", "info");
+      });
+      document.getElementById("btnFbTestGraph")?.addEventListener("click", async () => {
+        config = collectConfigFromUi();
+        syncFbDestinationFromUi(config);
+        const hint = document.getElementById("fbGraphHint");
+        if (hint) hint.textContent = "Test Graph…";
+        const res = await window.streamHub.facebookTestGraph({
+          accessToken: config.platforms?.facebook?.accessToken || "",
+          pageId: config.platforms?.facebook?.pageId || "",
+          save: true,
+        });
+        if (res?.config) config = res.config;
+        const msg = res?.ok
+          ? `${res.tip || "OK"} · token=${res.tokenAs || "?"} · page=${res.page?.name || res.page?.id || "—"} · live=${res.live?.liveId || "aucun"}`
+          : res?.reason || "échec Graph";
+        if (hint) hint.textContent = msg;
+        toast("Facebook Graph", msg, res?.ok ? "info" : "warn");
+      });
+      document.getElementById("btnFbGraphDocs")?.addEventListener("click", () =>
+        window.streamHub.openUrl("https://developers.facebook.com/tools/explorer/"),
+      );
+      document.getElementById("btnFbPushMeta")?.addEventListener("click", () =>
+        pushLiveMeta("facebook", { updateTitle: true, updateLink: true }),
+      );
+      document.getElementById("btnFbPushAllInfo")?.addEventListener("click", () =>
+        pushLiveMeta("facebook", { updateTitle: true, updateLink: false }),
+      );
+      document.getElementById("btnFbPushTitle")?.addEventListener("click", () =>
+        pushLiveMeta("facebook", { updateTitle: true, updateLink: false }),
+      );
+      document.getElementById("btnFbPushLink")?.addEventListener("click", () =>
+        pushLiveMeta("facebook", { updateTitle: false, updateLink: true }),
+      );
 
       document.getElementById("btnSyncScene").onclick = async () => {
         await window.streamHub.syncObsScreens(Number(document.getElementById("screenCount").value));
@@ -868,7 +2369,218 @@
         await refreshStatus();
       };
       document.getElementById("btnObsGoLive").onclick = () => window.streamHub.obsStartStream();
+      document.getElementById("igStickyUrl")?.addEventListener("input", updateIgStickyPreview);
+      document.getElementById("igStickyTitle")?.addEventListener("input", updateIgStickyPreview);
+      document.getElementById("fbDestination")?.addEventListener("change", () => {
+        updateFbDestinationUi();
+        updateFbStickyPreview();
+      });
+      document.getElementById("fbStickyUrl")?.addEventListener("input", updateFbStickyPreview);
+      document.getElementById("fbStickyTitle")?.addEventListener("input", updateFbStickyPreview);
+
+      document.getElementById("btnFbUsePage")?.addEventListener("click", async () => {
+        const id = document.getElementById("fbSavedPage")?.value;
+        if (!id || !applyFbSavedPage(id)) {
+          toast("Facebook", "Aucune page sélectionnée", "warn");
+          return;
+        }
+        config = collectConfigFromUi();
+        await window.streamHub.saveConfig(config);
+        toast("Facebook", `Page active: ${config.platforms.facebook.pageName}`, "info");
+        renderFbSavedDestinations();
+      });
+
+      document.getElementById("btnFbSavePage")?.addEventListener("click", async () => {
+        const name = document.getElementById("fbNewPageName")?.value?.trim();
+        const raw = document.getElementById("fbNewPageId")?.value?.trim();
+        const id = parseFbPageId(raw) || parseFbPageId(document.getElementById("fbSavedPage")?.value);
+        if (!id) {
+          toast("Facebook", "ID ou URL de page invalide", "warn");
+          return;
+        }
+        config = collectConfigFromUi();
+        const fb = ensureFbLists((config.platforms.facebook = config.platforms.facebook || {}));
+        const page = {
+          id,
+          name: name || fb.pageName || id,
+          pageUrl: /facebook\.com/i.test(raw || "")
+            ? raw
+            : `https://www.facebook.com/profile.php?id=${id}`,
+          businessAssetId: fb.businessAssetId || "",
+        };
+        fb.savedPages = [...fb.savedPages.filter((p) => String(p.id) !== String(id)), page];
+        applyFbSavedPage(id);
+        await window.streamHub.saveConfig(config);
+        renderFbSavedDestinations();
+        toast("Facebook", `Page enregistrée: ${page.name}`, "info");
+      });
+
+      document.getElementById("btnFbDeletePage")?.addEventListener("click", async () => {
+        const id = document.getElementById("fbSavedPage")?.value;
+        if (!id) return;
+        config = collectConfigFromUi();
+        const fb = ensureFbLists((config.platforms.facebook = config.platforms.facebook || {}));
+        fb.savedPages = fb.savedPages.filter((p) => String(p.id) !== String(id));
+        await window.streamHub.saveConfig(config);
+        renderFbSavedDestinations();
+        toast("Facebook", "Page retirée de la liste", "info");
+      });
+
+      document.getElementById("btnFbUseGroup")?.addEventListener("click", async () => {
+        const key = document.getElementById("fbSavedGroup")?.value;
+        if (!key || !applyFbSavedGroup(key)) {
+          toast("Facebook", "Aucun groupe sélectionné", "warn");
+          return;
+        }
+        config = collectConfigFromUi();
+        await window.streamHub.saveConfig(config);
+        toast("Facebook", "Groupe actif enregistré", "info");
+        renderFbSavedDestinations();
+      });
+
+      document.getElementById("btnFbSaveGroup")?.addEventListener("click", async () => {
+        const name = document.getElementById("fbNewGroupName")?.value?.trim();
+        const raw = document.getElementById("fbGroupUrl")?.value?.trim();
+        const parsed = parseFbGroup(raw);
+        if (!parsed.url && !parsed.id) {
+          toast("Facebook", "URL ou ID de groupe invalide", "warn");
+          return;
+        }
+        config = collectConfigFromUi();
+        const fb = ensureFbLists((config.platforms.facebook = config.platforms.facebook || {}));
+        const group = {
+          id: parsed.id || "",
+          name: name || parsed.id || "Groupe",
+          groupUrl: parsed.url || raw,
+        };
+        const key = group.id || group.groupUrl;
+        fb.savedGroups = [
+          ...fb.savedGroups.filter(
+            (g) => String(g.id || g.groupUrl || g.url) !== String(key),
+          ),
+          group,
+        ];
+        applyFbSavedGroup(key);
+        await window.streamHub.saveConfig(config);
+        renderFbSavedDestinations();
+        toast("Facebook", `Groupe enregistré: ${group.name}`, "info");
+      });
+
+      document.getElementById("btnFbDeleteGroup")?.addEventListener("click", async () => {
+        const key = document.getElementById("fbSavedGroup")?.value;
+        if (!key) return;
+        config = collectConfigFromUi();
+        const fb = ensureFbLists((config.platforms.facebook = config.platforms.facebook || {}));
+        fb.savedGroups = fb.savedGroups.filter(
+          (g) => String(g.id) !== String(key) && String(g.groupUrl || g.url) !== String(key),
+        );
+        await window.streamHub.saveConfig(config);
+        renderFbSavedDestinations();
+        toast("Facebook", "Groupe retiré de la liste", "info");
+      });
+
+      async function relaunchLive(platforms) {
+        const hint = document.getElementById("armGoLiveHint");
+        const igHint = document.getElementById("igHint");
+        const fbHint = document.getElementById("fbHint");
+        config = collectConfigFromUi();
+        // Persiste infos app avant relance
+        const igUrl = document.getElementById("igStickyUrl")?.value?.trim();
+        const igTitle = document.getElementById("igStickyTitle")?.value?.trim();
+        if (igUrl) config.platforms.instagram = { ...(config.platforms.instagram || {}), linkUrl: igUrl };
+        if (igTitle) {
+          config.platforms.instagram = { ...(config.platforms.instagram || {}), linkTitle: igTitle };
+        }
+        syncFbDestinationFromUi(config);
+        const enabled = Boolean(document.getElementById("guardAutoGoLive")?.checked);
+        config.streamGuard = { ...(config.streamGuard || {}), autoGoLive: enabled };
+        const title =
+          document.getElementById("fbLiveTitle")?.value?.trim() ||
+          document.getElementById("title").value.trim() ||
+          "Live AnimeBeat";
+        const game =
+          document.getElementById("fbLiveGame")?.value?.trim() ||
+          document.getElementById("gameQuery").value.trim() ||
+          "";
+        if (config.platforms?.facebook) {
+          config.platforms.facebook.lastTitle = title;
+        }
+        config = await window.streamHub.saveConfig(config);
+        const label = platforms.join("+");
+        const msg = `Relance ${label} : Producer → nginx → OBS → Go Live…`;
+        if (hint) hint.textContent = msg;
+        if (platforms.includes("instagram") && igHint) igHint.textContent = msg;
+        if (platforms.includes("facebook") && fbHint) fbHint.textContent = msg;
+        toast("Relancer", msg, "info");
+        const res = await window.streamHub.armGoLive({
+          force: true,
+          title,
+          game,
+          platforms,
+          startObsStream: true,
+          timeoutMs: 300000,
+        });
+        const ig = res?.instagram?.ok ? "IG live" : res?.instagram?.reason || "IG —";
+        const fb = res?.facebook?.ok ? "FB live" : res?.facebook?.reason || "FB —";
+        const summary = res?.ok
+          ? `OK · ${platforms.includes("instagram") ? ig : ""} ${platforms.includes("facebook") ? fb : ""}`.trim()
+          : res?.reason || `${ig} · ${fb}`;
+        if (hint) hint.textContent = summary;
+        if (platforms.includes("instagram") && igHint) igHint.textContent = summary;
+        if (platforms.includes("facebook") && fbHint) fbHint.textContent = summary;
+        toast("Relancer", summary, res?.ok ? "info" : "warn");
+        return res;
+      }
+
+      document.getElementById("btnArmGoLive").onclick = () =>
+        relaunchLive(["instagram", "facebook"]);
+      document.getElementById("btnRelaunchIg").onclick = () => relaunchLive(["instagram"]);
+      document.getElementById("btnRelaunchFb").onclick = () => relaunchLive(["facebook"]);
+      document.getElementById("btnRelaunchBoth").onclick = () =>
+        relaunchLive(["instagram", "facebook"]);
       document.getElementById("btnObsStop").onclick = () => window.streamHub.obsStopStream();
+
+      async function endMetaLive(which) {
+        const hint = document.getElementById("endMetaHint");
+        const igHint = document.getElementById("igHint");
+        const fbHint = document.getElementById("fbHint");
+        const label =
+          which === "both" ? "IG + FB" : which === "instagram" ? "Instagram" : "Facebook";
+        if (hint) hint.textContent = `Fin live ${label} (OBS non coupé)…`;
+        toast(label, "Fin du direct Meta — OBS continue…", "info");
+        let res;
+        if (which === "both") {
+          res = await window.streamHub.endMetaLives({
+            platforms: ["instagram", "facebook"],
+          });
+        } else if (which === "instagram") {
+          res = await window.streamHub.instagramEndLive();
+        } else {
+          res = await window.streamHub.facebookEndLive();
+        }
+        if (res?.config) config = res.config;
+        const summary = res?.ok
+          ? `Live ${label} terminé · OBS toujours en stream`
+          : res?.ended?.reason ||
+            res?.results?.instagram?.ended?.reason ||
+            res?.results?.facebook?.ended?.reason ||
+            res?.reason ||
+            "échec — ouvre Live Producer pendant le live";
+        if (hint) hint.textContent = summary;
+        if ((which === "instagram" || which === "both") && igHint) igHint.textContent = summary;
+        if ((which === "facebook" || which === "both") && fbHint) fbHint.textContent = summary;
+        toast(label, summary, res?.ok ? "info" : "warn");
+        try {
+          await renderLiveLinks();
+        } catch {
+          /* optional */
+        }
+        return res;
+      }
+      document.getElementById("btnIgEndLive").onclick = () => endMetaLive("instagram");
+      document.getElementById("btnFbEndLive").onclick = () => endMetaLive("facebook");
+      document.getElementById("btnEndMetaBoth").onclick = () => endMetaLive("both");
+
       document.getElementById("btnClip").onclick = () => window.streamHub.clip();
       document.getElementById("btnOpenClips").onclick = () => window.streamHub.openClips();
       document.getElementById("btnObsConnect").onclick = async () => {
@@ -926,27 +2638,121 @@
           fillObsFields();
         }
       };
+      document.getElementById("btnRefreshLiveLinks")?.addEventListener("click", () => renderLiveLinks());
+      document.getElementById("btnCaptureLiveUrls")?.addEventListener("click", async () => {
+        const res = await window.streamHub.refreshLiveUrls({
+          platforms: ["facebook", "instagram"],
+        });
+        if (res?.config) config = res.config;
+        await renderLiveLinks(res?.links);
+        toast(
+          "Liens LIVE",
+          [
+            res?.facebook?.liveUrl ? `FB ${res.facebook.liveUrl.slice(0, 40)}…` : "FB —",
+            res?.instagram?.liveUrl ? `IG ${res.instagram.liveUrl.slice(0, 40)}…` : "IG —",
+          ].join(" · "),
+          res?.facebook?.ok || res?.instagram?.ok ? "info" : "warn",
+        );
+      });
+      document.getElementById("btnSaveIgUser")?.addEventListener("click", async () => {
+        config = collectConfigFromUi();
+        const user = document.getElementById("igUsername")?.value?.trim().replace(/^@/, "") || "";
+        config.platforms.instagram = {
+          ...(config.platforms.instagram || {}),
+          username: user,
+          profileUrl: user ? `https://www.instagram.com/${user}/` : "",
+        };
+        await window.streamHub.saveConfig(config);
+        await renderLiveLinks();
+        toast("Instagram", user ? `Pseudo sauvé: @${user}` : "Pseudo effacé", "info");
+      });
+      document.getElementById("btnCopyAllLiveLinks")?.addEventListener("click", async () => {
+        const links = await window.streamHub.getLiveLinks();
+        const text = (links || [])
+          .map((l) => `${l.title}: ${l.url}`)
+          .join("\n");
+        await window.streamHub.copyText(text);
+        toast("Liens", `${links?.length || 0} liens copiés`, "info");
+      });
+
       document.getElementById("btnSaveCfg").onclick = async () => {
         config = collectConfigFromUi();
         config = await window.streamHub.saveConfig(config);
         toast("Config", "Sauvegardée", "info");
       };
       document.getElementById("btnOpenCfg").onclick = () => window.streamHub.openConfigFile();
+      async function refreshCompanionsHint() {
+        const hint = document.getElementById("companionsHint");
+        if (!hint || !window.streamHub.companionsStatus) return;
+        const list = await window.streamHub.companionsStatus();
+        hint.textContent = (list || [])
+          .map((c) => {
+            const state = c.running
+              ? "ON"
+              : c.sessionDismissed
+                ? "fermé (session)"
+                : c.configSkip
+                  ? "skip"
+                  : c.exeExists
+                    ? "off"
+                    : "path?";
+            return `${c.label}: ${state}`;
+          })
+          .join(" · ");
+      }
+
       document.getElementById("btnDiscover").onclick = async () => {
         const res = await window.streamHub.discoverLocal();
         config = res.config;
         fillObsFields();
         renderPlatforms();
         document.getElementById("discoverHint").textContent =
-          `SSN session=${config.socialStreamNinja?.sessionId || "?"} · OBS ${config.obs?.host}:${config.obs?.port} · SB :${config.streamerBot?.port} · jeu action=${config.streamerBot?.actions?.setGame || "?"}`;
+          `SSN session=${config.socialStreamNinja?.sessionId || "?"} · OBS ${config.obs?.host}:${config.obs?.port} · SB :${config.streamerBot?.port} · stunnel=${config.appPaths?.stunnel ? "ok" : "?"} · jeu action=${config.streamerBot?.actions?.setGame || "?"}`;
+        await window.streamHub.companionsEnsure({ force: false });
         await window.streamHub.obsConnect();
         await window.streamHub.ssnConnect();
         await window.streamHub.streamerbotConnect();
         await refreshStatus();
+        await refreshCompanionsHint();
       };
-      document.getElementById("btnLaunchSsn").onclick = () => window.streamHub.launchApp("socialstream");
-      document.getElementById("btnLaunchSb").onclick = () => window.streamHub.launchApp("streamerBot");
-      document.getElementById("btnLaunchObs").onclick = () => window.streamHub.launchApp("obs");
+      document.getElementById("btnCompanionsEnsure").onclick = async () => {
+        config = collectConfigFromUi();
+        config = await window.streamHub.saveConfig(config);
+        const res = await window.streamHub.companionsEnsure({ force: false });
+        const ok = (res?.results || []).filter((r) => r.ok && (r.launched || r.alreadyRunning));
+        toast(
+          "Companions",
+          ok.length
+            ? ok.map((r) => r.label || r.id).join(", ")
+            : res?.disabled
+              ? "Auto-launch désactivé"
+              : "rien à ouvrir",
+          "info",
+        );
+        await refreshCompanionsHint();
+      };
+      document.getElementById("btnLaunchStunnel").onclick = async () => {
+        config = collectConfigFromUi();
+        await window.streamHub.saveConfig(config);
+        const res = await window.streamHub.launchApp("stunnel");
+        toast("stunnel", res?.ok ? res.exe || "OK" : res?.reason || "échec", res?.ok ? "info" : "warn");
+        await refreshCompanionsHint();
+      };
+      document.getElementById("btnLaunchSsn").onclick = async () => {
+        const res = await window.streamHub.launchApp("socialstream");
+        toast("SSN", res?.ok ? "OK" : res?.reason || "échec", res?.ok ? "info" : "warn");
+        await refreshCompanionsHint();
+      };
+      document.getElementById("btnLaunchSb").onclick = async () => {
+        const res = await window.streamHub.launchApp("streamerBot");
+        toast("Streamer.bot", res?.ok ? "OK" : res?.reason || "échec", res?.ok ? "info" : "warn");
+        await refreshCompanionsHint();
+      };
+      document.getElementById("btnLaunchObs").onclick = async () => {
+        const res = await window.streamHub.launchApp("obs");
+        toast("OBS", res?.ok ? "OK" : res?.reason || "échec", res?.ok ? "info" : "warn");
+        await refreshCompanionsHint();
+      };
 
       init();
     </script>

@@ -1,10 +1,19 @@
 const { contextBridge, ipcRenderer } = require("electron");
 
 contextBridge.exposeInMainWorld("streamHub", {
+  getAppInfo: () => ipcRenderer.invoke("hub:get-app-info"),
+  updateStatus: () => ipcRenderer.invoke("stream:update-status"),
+  updateCheck: () => ipcRenderer.invoke("stream:update-check"),
+  updateInstall: () => ipcRenderer.invoke("stream:update-install"),
+  updateSettings: (patch) => ipcRenderer.invoke("stream:update-settings", patch),
+  updateOpenRelease: () => ipcRenderer.invoke("stream:update-open-release"),
   getConfig: () => ipcRenderer.invoke("stream:get-config"),
   saveConfig: (cfg) => ipcRenderer.invoke("stream:save-config", cfg),
   updateConfig: (patch) => ipcRenderer.invoke("stream:update-config", patch),
   openConfigFile: () => ipcRenderer.invoke("stream:open-config-file"),
+  openUrl: (url) => ipcRenderer.invoke("stream:open-url", url),
+  getLiveLinks: () => ipcRenderer.invoke("stream:get-live-links"),
+  copyText: (text) => ipcRenderer.invoke("stream:copy-text", text),
   obsConnect: () => ipcRenderer.invoke("stream:obs-connect"),
   obsStatus: () => ipcRenderer.invoke("stream:obs-status"),
   obsList: () => ipcRenderer.invoke("stream:obs-list"),
@@ -32,12 +41,33 @@ contextBridge.exposeInMainWorld("streamHub", {
   discoverLocal: () => ipcRenderer.invoke("stream:discover-local"),
   installSbActions: () => ipcRenderer.invoke("stream:install-sb-actions"),
   launchApp: (which) => ipcRenderer.invoke("stream:launch-app", which),
+  companionsEnsure: (payload) => ipcRenderer.invoke("stream:companions-ensure", payload),
+  companionsStatus: () => ipcRenderer.invoke("stream:companions-status"),
+  companionsDismiss: (which) => ipcRenderer.invoke("stream:companions-dismiss", which),
   instagramPrepare: (payload) => ipcRenderer.invoke("stream:instagram-prepare", payload),
   instagramGoLive: () => ipcRenderer.invoke("stream:instagram-go-live"),
   instagramOpen: () => ipcRenderer.invoke("stream:instagram-open"),
+  instagramEndLive: () => ipcRenderer.invoke("stream:instagram-end-live"),
+  instagramApplyCamera: (payload) =>
+    ipcRenderer.invoke("stream:instagram-apply-camera", payload),
+  listCameras: () => ipcRenderer.invoke("stream:list-cameras"),
+  obsVirtualCamStart: (payload) => ipcRenderer.invoke("stream:obs-virtual-cam-start", payload),
+  obsVirtualCamStatus: () => ipcRenderer.invoke("stream:obs-virtual-cam-status"),
+  aitumVerticalStart: () => ipcRenderer.invoke("stream:aitum-vertical-start"),
+  aitumVerticalStatus: () => ipcRenderer.invoke("stream:aitum-vertical-status"),
+  aitumPushIg: () => ipcRenderer.invoke("stream:aitum-push-ig"),
   facebookPrepare: (payload) => ipcRenderer.invoke("stream:facebook-prepare", payload),
   facebookGoLive: (payload) => ipcRenderer.invoke("stream:facebook-go-live", payload),
   facebookOpen: () => ipcRenderer.invoke("stream:facebook-open"),
+  facebookEndLive: () => ipcRenderer.invoke("stream:facebook-end-live"),
+  facebookTestGraph: (payload) =>
+    ipcRenderer.invoke("stream:facebook-test-graph", payload),
+  endMetaLives: (payload) => ipcRenderer.invoke("stream:end-meta-lives", payload),
+  armGoLive: (payload) => ipcRenderer.invoke("stream:arm-go-live", payload),
+  continueGoLive: (payload) => ipcRenderer.invoke("stream:continue-go-live", payload),
+  pushLiveMeta: (payload) => ipcRenderer.invoke("stream:push-live-meta", payload),
+  verifyLiveUpdates: (payload) => ipcRenderer.invoke("stream:verify-live-updates", payload),
+  refreshLiveUrls: (payload) => ipcRenderer.invoke("stream:refresh-live-urls", payload),
   onEvent: (cb) => {
     const listener = (_e, payload) => cb(payload);
     ipcRenderer.on("stream:event", listener);
