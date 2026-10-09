@@ -1,0 +1,81 @@
+@import "tailwindcss";
+
+:root {
+  --background: #070b19;
+  --foreground: #f4f7ff;
+  --muted: #b7c0da;
+  --panel: rgba(11, 19, 41, 0.72);
+  --panel-strong: rgba(8, 13, 30, 0.9);
+  --border: rgba(138, 164, 255, 0.32);
+  --primary-start: #6e46ff;
+  --primary-end: #14b8ff;
+  --accent: #8ef9ff;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  min-height: 100vh;
+  background:
+    radial-gradient(1200px 500px at -10% -20%, rgba(90, 57, 255, 0.45), transparent 60%),
+    radial-gradient(1000px 600px at 110% -10%, rgba(0, 212, 255, 0.28), transparent 58%),
+    linear-gradient(180deg, #060a18 0%, #0a1022 45%, #070c1a 100%);
+  color: var(--foreground);
+  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+}
+
+.anime-grid {
+  background-image:
+    linear-gradient(rgba(105, 128, 255, 0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(105, 128, 255, 0.08) 1px, transparent 1px);
+  background-size: 36px 36px;
+  opacity: 0.45;
+}
+
+.glass-panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  backdrop-filter: blur(10px);
+}
+
+.glass-panel-strong {
+  background: var(--panel-strong);
+  border: 1px solid var(--border);
+  backdrop-filter: blur(12px);
+}
+
+.btn-primary {
+  color: #fff;
+  background: linear-gradient(120deg, var(--primary-start), var(--primary-end));
+  box-shadow: 0 12px 28px rgba(18, 73, 220, 0.35);
+}
+
+.btn-primary:hover {
+  filter: brightness(1.08);
+}
+
+.btn-secondary {
+  color: #e8eeff;
+  border: 1px solid rgba(136, 159, 255, 0.42);
+  background: rgba(15, 22, 46, 0.72);
+}
+
+.btn-secondary:hover {
+  background: rgba(29, 40, 82, 0.74);
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.neon-text {
+  color: var(--accent);
+  text-shadow:
+    0 0 10px rgba(84, 255, 255, 0.45),
+    0 0 24px rgba(72, 166, 255, 0.4);
+}

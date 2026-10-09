@@ -1,0 +1,320 @@
+// Copie « Vercel / Neon » : PostgreSQL. Synchroniser les modèles avec schema.sqlite.prisma.
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum TierRank {
+  S
+  A
+  B
+  C
+  D
+}
+
+enum SuggestionStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum LinkSuggestionKind {
+  LIST_FULL
+  LIST_ITEM
+  HOME_TEASER
+}
+
+enum FriendshipStatus {
+  PENDING
+  ACCEPTED
+}
+
+enum ProfileLocationVisibility {
+  PRIVATE
+  FRIENDS_ONLY
+  PUBLIC
+}
+
+enum UserAnimeInterestKind {
+  FAVORITE
+  PLAN_TO_WATCH
+}
+
+enum UserCharacterSentiment {
+  LIKE
+  DISLIKE
+}
+
+model User {
+  id                       String           @id @default(cuid())
+  email                    String           @unique
+  name                     String?
+  passwordHash             String?
+  discordId                String?          @unique
+  discordUsername          String?
+  role                     Role             @default(USER)
+  tierLists                TierList[]
+  tierVotes                TierListVote[]
+  linkSuggestionsSubmitted LinkSuggestion[] @relation("SubmittedSuggestions")
+  linkSuggestionsReviewed  LinkSuggestion[] @relation("ReviewedSuggestions")
+  musicPlaylistsCreated    MusicPlaylist[]
+  motivation               UserMotivation?
+  profile                  UserProfile?
+  friendshipsSent          Friendship[]     @relation("FriendRequester")
+  friendshipsReceived      Friendship[]     @relation("FriendAddressee")
+  animeInterests           UserAnimeInterest[]
+  characterOpinions        UserCharacterOpinion[]
+  favoriteOsts             UserFavoriteOst[]
+  favoriteAnimeGames       UserFavoriteAnimeGame[]
+  createdAt                DateTime         @default(now())
+  updatedAt                DateTime         @updatedAt
+}
+
+model CatalogAnime {
+  id         String              @id @default(cuid())
+  slug       String              @unique
+  title      String
+  sortOrder  Int                 @default(0)
+  characters CatalogCharacter[]
+  interests  UserAnimeInterest[]
+
+  @@index([sortOrder])
+}
+
+model CatalogCharacter {
+  id        String   @id @default(cuid())
+  animeId   String
+  anime     CatalogAnime @relation(fields: [animeId], references: [id], onDelete: Cascade)
+  name      String
+  sortOrder Int      @default(0)
+  opinions  UserCharacterOpinion[]
+
+  @@unique([animeId, name])
+  @@index([animeId, sortOrder])
+}
+
+model UserAnimeInterest {
+  id      String               @id @default(cuid())
+  userId  String
+  animeId String
+  kind    UserAnimeInterestKind
+  user    User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  anime   CatalogAnime         @relation(fields: [animeId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, animeId, kind])
+  @@index([userId])
+}
+
+model UserCharacterOpinion {
+  id          String                @id @default(cuid())
+  userId      String
+  characterId String
+  sentiment   UserCharacterSentiment
+  user        User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  character   CatalogCharacter      @relation(fields: [characterId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, characterId])
+  @@index([userId])
+}
+
+model CatalogOst {
+  id        String           @id @default(cuid())
+  slug      String           @unique
+  title     String
+  series    String?
+  sortOrder Int              @default(0)
+  favorites UserFavoriteOst[]
+
+  @@index([sortOrder])
+}
+
+model UserFavoriteOst {
+  id     String     @id @default(cuid())
+  userId String
+  ostId  String
+  user   User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ost    CatalogOst @relation(fields: [ostId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, ostId])
+  @@index([userId])
+}
+
+model CatalogAnimeGame {
+  id        String                  @id @default(cuid())
+  slug      String                  @unique
+  title     String
+  series    String?
+  sortOrder Int                     @default(0)
+  favorites UserFavoriteAnimeGame[]
+
+  @@index([sortOrder])
+}
+
+model UserFavoriteAnimeGame {
+  id     String           @id @default(cuid())
+  userId String
+  gameId String
+  user   User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  game   CatalogAnimeGame @relation(fields: [gameId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, gameId])
+  @@index([userId])
+}
+
+model UserProfile {
+  userId String @id
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  bio String?
+
+  locationCountry    String?
+  locationDepartment String?
+  locationCity       String?
+  locationDetail     String?
+
+  locationVisibility ProfileLocationVisibility @default(PRIVATE)
+
+  showEmailToFriends         Boolean @default(false)
+  showDiscordToFriends       Boolean @default(true)
+  showDiscordOnPublicProfile Boolean @default(false)
+
+  updatedAt DateTime @updatedAt
+}
+
+model Friendship {
+  id          String            @id @default(cuid())
+  requesterId String
+  addresseeId String
+  status      FriendshipStatus  @default(PENDING)
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  requester User @relation("FriendRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+  addressee User @relation("FriendAddressee", fields: [addresseeId], references: [id], onDelete: Cascade)
+
+  @@unique([requesterId, addresseeId])
+  @@index([addresseeId, status])
+  @@index([requesterId, status])
+}
+
+/// Profil bienveillance + progression (niveaux journalier / hebdo / mensuel).
+model UserMotivation {
+  userId String @id
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  zodiacSign  String?
+  personality String?
+  goals       Json?
+
+  totalXp Int @default(0)
+
+  dailyXp    Int    @default(0)
+  dailyPeriod String @default("")
+
+  weeklyXp    Int    @default(0)
+  weeklyPeriod String @default("")
+
+  monthlyXp    Int    @default(0)
+  monthlyPeriod String @default("")
+
+  lastKindnessDay String?
+  profileFilledAt DateTime?
+
+  updatedAt DateTime @updatedAt
+}
+
+model TierList {
+  id              String           @id @default(cuid())
+  title           String
+  description     String?
+  anime           String?
+  category        String
+  resourceUrl     String?
+  createdById     String
+  createdBy       User             @relation(fields: [createdById], references: [id], onDelete: Cascade)
+  items           TierListItem[]
+  votes           TierListVote[]
+  linkSuggestions LinkSuggestion[]
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+}
+
+model TierListItem {
+  id              String           @id @default(cuid())
+  tierListId      String
+  tierList        TierList         @relation(fields: [tierListId], references: [id], onDelete: Cascade)
+  label           String
+  rank            TierRank
+  linkUrl         String?
+  sortOrder       Int              @default(0)
+  createdAt       DateTime         @default(now())
+  linkSuggestions LinkSuggestion[]
+
+  @@index([tierListId, rank, sortOrder])
+}
+
+model TierListVote {
+  id         String   @id @default(cuid())
+  tierListId String
+  userId     String
+  value      Int      @default(1)
+  tierList   TierList @relation(fields: [tierListId], references: [id], onDelete: Cascade)
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+
+  @@unique([tierListId, userId])
+}
+
+model SiteConfig {
+  id                         Int      @id
+  liveTvEnabled              Boolean  @default(true)
+  discordInviteUrl           String?
+  discordCommunityChannelUrl String?
+  discordWidgetServerId      String?
+  updatedAt                  DateTime @updatedAt
+}
+
+model LinkSuggestion {
+  id               String              @id @default(cuid())
+  kind             LinkSuggestionKind  @default(LIST_FULL)
+  tierListId       String?
+  tierListItemId   String?
+  url              String
+  title            String?
+  note             String?
+  status           SuggestionStatus    @default(PENDING)
+  submittedById    String
+  reviewedById     String?
+  reviewedAt       DateTime?
+  createdAt        DateTime            @default(now())
+
+  tierList     TierList?     @relation(fields: [tierListId], references: [id], onDelete: Cascade)
+  tierListItem TierListItem? @relation(fields: [tierListItemId], references: [id], onDelete: Cascade)
+  submittedBy  User          @relation("SubmittedSuggestions", fields: [submittedById], references: [id], onDelete: Cascade)
+  reviewedBy   User?         @relation("ReviewedSuggestions", fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  @@index([status, createdAt])
+  @@index([tierListId, status])
+  @@index([tierListItemId, status])
+  @@index([kind, status])
+}
+
+model MusicPlaylist {
+  id          String   @id @default(cuid())
+  label       String
+  url         String
+  createdById String
+  createdBy   User     @relation(fields: [createdById], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}

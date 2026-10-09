@@ -1,0 +1,954 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AnimeBeat Stream Command</title>
+    <style>
+      :root {
+        --bg: #070b19;
+        --panel: #0d1430;
+        --panel2: #111a3d;
+        --border: rgba(130, 154, 255, 0.32);
+        --text: #f3f6ff;
+        --muted: #b6c0db;
+        --ok: #34d399;
+        --warn: #fbbf24;
+        --bad: #f87171;
+        --accent: #14b8ff;
+      }
+      * { box-sizing: border-box; }
+      html, body {
+        margin: 0;
+        background: radial-gradient(1200px 600px at 10% -10%, #1a2458 0%, var(--bg) 55%);
+        color: var(--text);
+        font-family: "Segoe UI", sans-serif;
+        min-height: 100%;
+      }
+      header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        padding: 14px 16px;
+        border-bottom: 1px solid var(--border);
+        background: linear-gradient(180deg, #101a3b, #0a122d);
+        position: sticky;
+        top: 0;
+        z-index: 5;
+      }
+      h1 { margin: 0; font-size: 16px; }
+      .sub { color: var(--muted); font-size: 12px; margin-top: 2px; }
+      .status-pills { display: flex; gap: 8px; flex-wrap: wrap; }
+      .pill {
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        padding: 4px 10px;
+        font-size: 11px;
+        background: #0d1430;
+      }
+      .pill.ok { color: var(--ok); }
+      .pill.warn { color: var(--warn); }
+      .pill.bad { color: var(--bad); }
+      main {
+        display: grid;
+        grid-template-columns: 1.2fr 1fr;
+        gap: 12px;
+        padding: 12px;
+      }
+      @media (max-width: 1100px) {
+        main { grid-template-columns: 1fr; }
+      }
+      section {
+        background: rgba(13, 20, 48, 0.92);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 12px;
+      }
+      section h2 {
+        margin: 0 0 10px;
+        font-size: 13px;
+        letter-spacing: 0.02em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+      label { display: block; font-size: 11px; color: var(--muted); margin-bottom: 4px; }
+      input, select, textarea {
+        width: 100%;
+        border: 1px solid var(--border);
+        background: var(--panel2);
+        color: var(--text);
+        border-radius: 8px;
+        padding: 8px 10px;
+        font-size: 13px;
+      }
+      textarea { min-height: 70px; resize: vertical; }
+      .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
+      .row3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 10px; }
+      .stack { display: flex; flex-direction: column; gap: 8px; }
+      .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+      button {
+        border: 1px solid var(--border);
+        background: var(--panel);
+        color: var(--text);
+        border-radius: 8px;
+        padding: 8px 12px;
+        font-size: 12px;
+        cursor: pointer;
+      }
+      button:hover { background: #18234d; }
+      button.primary {
+        border: none;
+        background: linear-gradient(120deg, #6e46ff, #14b8ff);
+        font-weight: 600;
+      }
+      button.danger { border-color: rgba(248, 113, 113, 0.5); color: #fecaca; }
+      .games {
+        max-height: 180px;
+        overflow: auto;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        margin-top: 8px;
+      }
+      .game {
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+        padding: 8px 10px;
+        border-bottom: 1px solid rgba(130, 154, 255, 0.15);
+        cursor: pointer;
+        font-size: 12px;
+      }
+      .game:hover, .game.active { background: #18234d; }
+      .game small { color: var(--muted); }
+      .presets { display: flex; flex-wrap: wrap; gap: 6px; }
+      .preset {
+        border: 1px solid var(--border);
+        background: #10193a;
+        border-radius: 8px;
+        padding: 6px 10px;
+        font-size: 12px;
+        cursor: pointer;
+      }
+      .preset:hover { border-color: var(--accent); }
+      .toast-box {
+        max-height: 160px;
+        overflow: auto;
+        font-size: 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+      .toast {
+        border-left: 3px solid var(--accent);
+        background: #0b1230;
+        padding: 6px 8px;
+        border-radius: 6px;
+      }
+      .toast.warn { border-left-color: var(--warn); }
+      .toast.bad, .toast.error { border-left-color: var(--bad); }
+      .dest-list { font-size: 12px; color: var(--muted); line-height: 1.5; }
+      .hint {
+        font-size: 11px;
+        color: var(--muted);
+        margin-top: 8px;
+        line-height: 1.4;
+      }
+      details { margin-top: 8px; }
+      summary { cursor: pointer; color: var(--muted); font-size: 12px; }
+      .platform-grid { display: grid; gap: 8px; margin-top: 8px; }
+      .platform {
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 8px;
+        background: #0b1230;
+      }
+      .platform .top {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 6px;
+        font-size: 12px;
+        font-weight: 600;
+      }
+      .full { grid-column: 1 / -1; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div>
+        <h1>AnimeBeat Stream Command</h1>
+        <div class="sub">SSN chat · Streamer.bot titres/jeux · Multistream · Dashboard OBS</div>
+      </div>
+      <div class="status-pills">
+        <div class="pill" id="obsPill">OBS …</div>
+        <div class="pill" id="msPill">Multistream …</div>
+        <div class="pill" id="ssnPill">SSN …</div>
+        <div class="pill" id="sbPill">Streamer.bot …</div>
+        <div class="pill ok">TikTok = Studio externe</div>
+      </div>
+    </header>
+
+    <main>
+      <section class="full">
+        <h2>Apps locales (auto-détectées)</h2>
+        <p class="hint">Chemins lus depuis tes installs SSN / Streamer.bot / OBS. Si le chat est vide : SSN doit avoir Remote API + Send chat to API server ON, et le dock ouvert.</p>
+        <div class="actions">
+          <button class="primary" id="btnDiscover">Relire mes configs locales</button>
+          <button id="btnLaunchSsn">Lancer Social Stream</button>
+          <button id="btnLaunchSb">Lancer Streamer.bot</button>
+          <button id="btnLaunchObs">Lancer OBS</button>
+        </div>
+        <p class="hint" id="discoverHint">—</p>
+      </section>
+
+      <section>
+        <h2>Titre & jeu (toutes plateformes)</h2>
+        <div class="row">
+          <div>
+            <label>Preset</label>
+            <div class="presets" id="presets"></div>
+          </div>
+          <div>
+            <label>Écran hub → scène OBS</label>
+            <select id="screenCount">
+              <option value="1">1 → Solo</option>
+              <option value="2">2 → Dual</option>
+              <option value="3">3 → Triple</option>
+              <option value="4">4 → Quad</option>
+              <option value="5">5</option>
+              <option value="6">6</option>
+              <option value="7">7</option>
+              <option value="8">8</option>
+              <option value="9">9</option>
+              <option value="10">10</option>
+            </select>
+          </div>
+        </div>
+        <div class="stack">
+          <div>
+            <label>Titre (appliqué partout via templates)</label>
+            <input id="title" placeholder="Ex: Classement anime en live" />
+          </div>
+          <div>
+            <label>Jeu (recherche Twitch + Kick)</label>
+            <input id="gameQuery" placeholder="Tape un jeu… Just Chatting, Genshin Impact…" />
+            <div class="games" id="gameResults"></div>
+          </div>
+        </div>
+        <div class="actions">
+          <button class="primary" id="btnApply">Appliquer titre + jeu partout</button>
+          <button id="btnSearch">Chercher jeu</button>
+          <button id="btnSyncScene">Maj scène OBS (écrans)</button>
+          <button id="btnSavePreset">Sauver preset</button>
+        </div>
+        <p class="hint" id="selectedGame">Aucun jeu sélectionné — la recherche choisira le meilleur match, sinon notification.</p>
+      </section>
+
+      <section>
+        <h2>Go Live / Multistream</h2>
+        <p class="hint">
+          OBS envoie vers le relais local, qui fan-out vers Twitch / Kick / Facebook / Instagram / YouTube.
+          TikTok reste sur <strong>TikTok LIVE Studio</strong> en même temps.
+        </p>
+        <div class="dest-list" id="destList">Destinations: …</div>
+        <div class="actions">
+          <button class="primary" id="btnMsStart">Démarrer multistream + pointer OBS</button>
+          <button id="btnObsGoLive">Start Stream OBS</button>
+          <button class="danger" id="btnObsStop">Stop Stream OBS</button>
+          <button class="danger" id="btnMsStop">Arrêter multistream</button>
+        </div>
+        <p class="hint" id="ingestHint">Ingest: —</p>
+        <div class="actions">
+          <button id="btnClip">Créer clip (Replay Buffer)</button>
+          <button id="btnOpenClips">Ouvrir dossier clips</button>
+        </div>
+      </section>
+
+      <section class="full">
+        <h2>Dashboard OBS (multilive + titres)</h2>
+        <div class="row">
+          <div>
+            <label>Host / port / password</label>
+            <div class="row" style="margin:0">
+              <input id="obsHost" placeholder="127.0.0.1" />
+              <input id="obsPort" placeholder="4455" />
+              <input id="obsPassword" type="password" placeholder="password" />
+            </div>
+          </div>
+          <div>
+            <label>Sources texte titre / jeu</label>
+            <div class="row" style="margin:0">
+              <input id="obsTitleSource" placeholder="StreamTitle" />
+              <input id="obsGameSource" placeholder="StreamGame" />
+            </div>
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <label>Scènes hub (1–10)</label>
+            <div class="row3" id="sceneMap"></div>
+          </div>
+          <div>
+            <label>Scène OBS actuelle</label>
+            <select id="obsSceneSelect"></select>
+            <div class="actions">
+              <button id="btnObsSetScene">Changer de scène</button>
+              <button id="btnObsRefreshDash">Rafraîchir dashboard</button>
+              <button id="btnObsConnect">Reconnecter OBS</button>
+            </div>
+            <p class="hint" id="obsDashHint">—</p>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <h2>Social Stream Ninja (chat)</h2>
+        <p class="hint">Extension/app SSN → Remote API + Send chat to API server. Le hub charge le dock en mode Chat SSN.</p>
+        <div class="row">
+          <div>
+            <label>Session ID</label>
+            <input id="ssnSession" placeholder="ex: AB12CD" />
+          </div>
+          <div>
+            <label>Dock URL (optionnel, sinon auto)</label>
+            <input id="ssnDock" placeholder="https://socialstream.ninja/dock.html?session=..." />
+          </div>
+        </div>
+        <label style="display:flex;gap:8px;align-items:center;margin:8px 0">
+          <input type="checkbox" id="ssnEnabled" /> Activer SSN
+        </label>
+        <div class="actions">
+          <button class="primary" id="btnSsnConnect">Connecter SSN</button>
+          <button id="btnSsnOpenDock">Ouvrir dock</button>
+        </div>
+        <p class="hint" id="ssnHint">—</p>
+      </section>
+
+      <section>
+        <h2>Streamer.bot (titres & jeux)</h2>
+        <p class="hint">Servers/Clients → WebSocket Server port <b>4457</b> (pas 8080). Les comptes Twitch/Kick déjà liés dans Streamer.bot sont utilisés pour titre &amp; jeu.</p>
+        <div class="row">
+          <div>
+            <label>Host / port (principal = 4457)</label>
+            <div class="row" style="margin:0">
+              <input id="sbHost" placeholder="127.0.0.1" />
+              <input id="sbPort" placeholder="4457" />
+            </div>
+          </div>
+          <div>
+            <label>Actions (noms exacts SB)</label>
+            <input id="sbActionTitle" placeholder="AnimeBeat Set Title" />
+            <input id="sbActionGame" placeholder="AnimeBeat Set Game" style="margin-top:6px" />
+            <input id="sbActionBoth" placeholder="AnimeBeat Set Title Game" style="margin-top:6px" />
+          </div>
+        </div>
+        <label style="display:flex;gap:8px;align-items:center;margin:8px 0">
+          <input type="checkbox" id="sbEnabled" /> Activer Streamer.bot
+        </label>
+        <div class="actions">
+          <button class="primary" id="btnSbConnect">Connecter Streamer.bot</button>
+          <button id="btnSbRefreshActions">Lister actions</button>
+          <button id="btnSbInstallActions">Installer actions AnimeBeat (titre/jeu)</button>
+        </div>
+        <p class="hint" id="sbHint">Tes actions ChangeGameName étaient vides (0 sub-action). Installe AnimeBeat, puis redémarre Streamer.bot.</p>
+        <div class="dest-list" id="sbActionsList"></div>
+      </section>
+
+      <section class="full">
+        <h2>Plateformes & clés RTMP</h2>
+        <div class="platform-grid" id="platforms"></div>
+        <div class="actions">
+          <button class="primary" id="btnSaveCfg">Enregistrer config</button>
+          <button id="btnOpenCfg">Ouvrir fichier config</button>
+        </div>
+      </section>
+
+      <section class="full">
+        <h2>Journal</h2>
+        <div class="toast-box" id="toasts"></div>
+      </section>
+    </main>
+
+    <script>
+      let config = null;
+      let selectedGame = null;
+      let searchTimer = null;
+
+      function toast(title, body, level = "info") {
+        const box = document.getElementById("toasts");
+        const el = document.createElement("div");
+        el.className = `toast ${level}`;
+        el.textContent = `${title} — ${body}`;
+        box.prepend(el);
+      }
+
+      function setPill(id, text, cls) {
+        const el = document.getElementById(id);
+        el.textContent = text;
+        el.className = `pill ${cls || ""}`;
+      }
+
+      function renderPresets() {
+        const root = document.getElementById("presets");
+        root.innerHTML = "";
+        (config.presets || []).forEach((p) => {
+          const b = document.createElement("button");
+          b.className = "preset";
+          b.textContent = p.label;
+          b.onclick = async () => {
+            document.getElementById("title").value = p.title || "";
+            document.getElementById("gameQuery").value = p.gameQuery || "";
+            selectedGame = null;
+            updateSelectedGameLabel();
+            const res = await window.streamHub.applyPreset(p.id);
+            if (res?.gameName) {
+              selectedGame = { name: res.gameName, twitchId: res.twitchGameId, platform: "twitch" };
+              updateSelectedGameLabel();
+            }
+          };
+          root.appendChild(b);
+        });
+      }
+
+      function platformFields(key, label, fields) {
+        const p = config.platforms[key] || {};
+        return `
+          <div class="platform" data-platform="${key}">
+            <div class="top">
+              <span>${label}</span>
+              <label style="display:flex;gap:6px;align-items:center;margin:0">
+                <input type="checkbox" data-en="${key}" ${p.enabled ? "checked" : ""} />
+                ON
+              </label>
+            </div>
+            ${fields
+              .map(
+                ([f, ph, type]) => `
+              <label style="margin-top:6px">${ph}</label>
+              <input data-pf="${key}.${f}" type="${type || "text"}" value="${String(p[f] ?? "").replace(/"/g, "&quot;")}" />
+            `,
+              )
+              .join("")}
+            ${
+              key === "tiktok"
+                ? `<p class="hint">Toujours simultané via TikTok LIVE Studio (pas de push RTMP depuis ce relais).</p>`
+                : ""
+            }
+            ${
+              key === "instagram"
+                ? `<p class="hint">Automatisé : ouvre Live Producer, remplit le titre du hub, récupère URL + clé (change à chaque live). Compte Pro + login une fois dans la fenêtre.</p>
+                   <div class="actions" style="margin-top:8px">
+                     <button type="button" id="btnIgPrepare">Préparer Instagram (titre→clé)</button>
+                     <button type="button" id="btnIgGoLive">Lancer un direct IG</button>
+                     <button type="button" id="btnIgOpen">Ouvrir Live Producer</button>
+                   </div>
+                   <p class="hint" id="igHint">—</p>`
+                : ""
+            }
+            ${
+              key === "facebook"
+                ? `<p class="hint">Toujours ta <b>PAGE</b> (pas le profil perso) : clé persistante → titre + jeu → Lancer un direct quand le flux est prêt.</p>
+                   <div class="actions" style="margin-top:8px">
+                     <button type="button" id="btnFbPrepare">Préparer Facebook PAGE</button>
+                     <button type="button" id="btnFbGoLive">Lancer un direct FB</button>
+                     <button type="button" id="btnFbOpen">Ouvrir la PAGE</button>
+                   </div>
+                   <p class="hint" id="fbHint">—</p>`
+                : ""
+            }
+          </div>
+        `;
+      }
+
+      function bindInstagramButtons() {
+        const hint = document.getElementById("igHint");
+        const prepare = document.getElementById("btnIgPrepare");
+        const goLive = document.getElementById("btnIgGoLive");
+        const open = document.getElementById("btnIgOpen");
+        if (prepare) {
+          prepare.onclick = async () => {
+            config = collectConfigFromUi();
+            config.platforms.instagram = config.platforms.instagram || {};
+            config.platforms.instagram.enabled = true;
+            await window.streamHub.saveConfig(config);
+            if (hint) hint.textContent = "Ouverture Live Producer… (login si demandé)";
+            const title = document.getElementById("title").value.trim() || "Live AnimeBeat";
+            const res = await window.streamHub.instagramPrepare({ title });
+            if (res?.ok) {
+              config = res.config || (await window.streamHub.getConfig());
+              renderPlatforms();
+              if (hint) {
+                hint.textContent = `OK · ${res.rtmpUrl} · clé ${String(res.streamKey).slice(0, 16)}… — garde la fenêtre IG ouverte`;
+              }
+              toast("Instagram", "URL + clé récupérées", "info");
+            } else {
+              if (hint) hint.textContent = res?.reason || "échec";
+              toast("Instagram", res?.reason || "échec", "warn");
+            }
+          };
+        }
+        if (goLive) {
+          goLive.onclick = async () => {
+            const res = await window.streamHub.instagramGoLive();
+            toast("Instagram", res?.ok ? "Lancer un direct cliqué" : res?.reason || "échec", res?.ok ? "info" : "warn");
+          };
+        }
+        if (open) {
+          open.onclick = () => window.streamHub.instagramOpen();
+        }
+      }
+
+      function bindFacebookButtons() {
+        const hint = document.getElementById("fbHint");
+        const prepare = document.getElementById("btnFbPrepare");
+        const goLive = document.getElementById("btnFbGoLive");
+        const open = document.getElementById("btnFbOpen");
+        if (prepare) {
+          prepare.onclick = async () => {
+            config = collectConfigFromUi();
+            config.platforms.facebook = config.platforms.facebook || {};
+            config.platforms.facebook.enabled = true;
+            config.platforms.facebook.useLiveProducer = true;
+            config.platforms.facebook.pageUrl =
+              config.platforms.facebook.pageUrl ||
+              "https://www.facebook.com/profile.php?id=100036165385264";
+            config.platforms.facebook.pageId =
+              config.platforms.facebook.pageId || "100036165385264";
+            await window.streamHub.saveConfig(config);
+            if (hint) hint.textContent = "Ouverture PAGE Facebook Live Producer…";
+            const title = document.getElementById("title").value.trim() || "Live AnimeBeat";
+            const game =
+              (typeof selectedGame !== "undefined" && selectedGame?.name) ||
+              document.getElementById("gameQuery").value.trim() ||
+              "";
+            const res = await window.streamHub.facebookPrepare({ title, game, autoGoLive: true });
+            if (res?.ok) {
+              config = res.config || (await window.streamHub.getConfig());
+              renderPlatforms();
+              if (hint) {
+                hint.textContent = `PAGE OK · clé ${String(res.streamKey).slice(0, 18)}… · titre/jeu · attente Go Live`;
+              }
+              toast("Facebook", "PAGE préparée (clé persistante)", "info");
+            } else {
+              if (hint) hint.textContent = res?.reason || "échec";
+              toast("Facebook", res?.reason || "échec", "warn");
+            }
+          };
+        }
+        if (goLive) {
+          goLive.onclick = async () => {
+            if (hint) hint.textContent = "Attente bouton Lancer un direct…";
+            const res = await window.streamHub.facebookGoLive({ waitForReady: true });
+            toast("Facebook", res?.ok ? "Direct lancé" : res?.reason || "échec", res?.ok ? "info" : "warn");
+            if (hint) hint.textContent = res?.ok ? "Direct lancé" : res?.reason || "—";
+          };
+        }
+        if (open) {
+          open.onclick = () => window.streamHub.facebookOpen();
+        }
+      }
+
+      function renderPlatforms() {
+        document.getElementById("platforms").innerHTML = [
+          platformFields("twitch", "Twitch", [
+            ["clientId", "Client ID"],
+            ["clientSecret", "Client Secret", "password"],
+            ["accessToken", "User Access Token (channel:manage:broadcast)", "password"],
+            ["streamKey", "Stream key", "password"],
+            ["login", "Login chaîne"],
+          ]),
+          platformFields("kick", "Kick", [
+            ["rtmpUrl", "RTMP URL"],
+            ["streamKey", "Stream key", "password"],
+          ]),
+          platformFields("facebook", "Facebook PAGE", [
+            ["pageUrl", "URL de la PAGE (pas le profil perso)"],
+            ["pageId", "Page ID"],
+            ["rtmpUrl", "RTMP URL (auto)"],
+            ["streamKey", "Clé persistante (auto)", "password"],
+            ["accessToken", "Token Graph API (optionnel / fallback)", "password"],
+          ]),
+          platformFields("instagram", "Instagram", [
+            ["rtmpUrl", "RTMP URL (auto)"],
+            ["streamKey", "Stream key Live Producer (auto)", "password"],
+          ]),
+          platformFields("youtube", "YouTube", [
+            ["rtmpUrl", "RTMP URL"],
+            ["streamKey", "Stream key", "password"],
+          ]),
+          platformFields("custom", "Custom RTMP", [
+            ["label", "Label"],
+            ["rtmpUrl", "RTMP URL"],
+            ["streamKey", "Stream key", "password"],
+          ]),
+          platformFields("tiktok", "TikTok LIVE Studio", []),
+        ].join("");
+        bindInstagramButtons();
+        bindFacebookButtons();
+      }
+
+      function fillObsFields() {
+        document.getElementById("obsTitleSource").value = config.obs.textSources?.title || "";
+        document.getElementById("obsGameSource").value = config.obs.textSources?.game || "";
+        document.getElementById("obsHost").value = config.obs.host || "127.0.0.1";
+        document.getElementById("obsPort").value = config.obs.port || 4455;
+        document.getElementById("obsPassword").value = config.obs.password || "";
+        const map = document.getElementById("sceneMap");
+        map.innerHTML = "";
+        for (let i = 1; i <= 10; i += 1) {
+          const wrap = document.createElement("div");
+          wrap.innerHTML = `<label>Scène ${i}</label><input data-scene="${i}" value="${
+            config.obs.screenScenes?.[String(i)] || ""
+          }" placeholder="Grid${i}" />`;
+          map.appendChild(wrap);
+        }
+        document.getElementById("ssnSession").value = config.socialStreamNinja?.sessionId || "";
+        document.getElementById("ssnDock").value = config.socialStreamNinja?.dockUrl || "";
+        document.getElementById("ssnEnabled").checked = config.socialStreamNinja?.enabled !== false;
+        document.getElementById("sbHost").value = config.streamerBot?.host || "127.0.0.1";
+        document.getElementById("sbPort").value = config.streamerBot?.port || 4457;
+        document.getElementById("sbActionTitle").value = config.streamerBot?.actions?.setTitle || "";
+        document.getElementById("sbActionGame").value = config.streamerBot?.actions?.setGame || "";
+        document.getElementById("sbActionBoth").value = config.streamerBot?.actions?.setTitleAndGame || "";
+        document.getElementById("sbEnabled").checked = config.streamerBot?.enabled !== false;
+      }
+
+      function collectConfigFromUi() {
+        const next = structuredClone(config);
+        next.obs = next.obs || {};
+        next.obs.host = document.getElementById("obsHost").value.trim();
+        next.obs.port = Number(document.getElementById("obsPort").value) || 4455;
+        next.obs.password = document.getElementById("obsPassword").value;
+        next.obs.textSources = {
+          title: document.getElementById("obsTitleSource").value.trim(),
+          game: document.getElementById("obsGameSource").value.trim(),
+        };
+        next.obs.screenScenes = {};
+        document.querySelectorAll("[data-scene]").forEach((el) => {
+          next.obs.screenScenes[el.getAttribute("data-scene")] = el.value.trim();
+        });
+        next.obs.autoSwitchSceneOnScreenCount = true;
+
+        next.socialStreamNinja = {
+          ...(next.socialStreamNinja || {}),
+          enabled: document.getElementById("ssnEnabled").checked,
+          sessionId: document.getElementById("ssnSession").value.trim(),
+          dockUrl: document.getElementById("ssnDock").value.trim(),
+          useAsHubChat: true,
+          chatChannel: 4,
+        };
+        next.streamerBot = {
+          ...(next.streamerBot || {}),
+          enabled: document.getElementById("sbEnabled").checked,
+          host: document.getElementById("sbHost").value.trim() || "127.0.0.1",
+          port: Number(document.getElementById("sbPort").value) || 4457,
+          actions: {
+            setTitle: document.getElementById("sbActionTitle").value.trim(),
+            setGame: document.getElementById("sbActionGame").value.trim(),
+            setTitleAndGame: document.getElementById("sbActionBoth").value.trim(),
+          },
+        };
+
+        document.querySelectorAll("[data-en]").forEach((el) => {
+          const key = el.getAttribute("data-en");
+          next.platforms[key] = next.platforms[key] || {};
+          next.platforms[key].enabled = el.checked;
+        });
+        document.querySelectorAll("[data-pf]").forEach((el) => {
+          const [key, field] = el.getAttribute("data-pf").split(".");
+          next.platforms[key] = next.platforms[key] || {};
+          next.platforms[key][field] = el.value;
+        });
+        next.platforms.tiktok.enabled = true;
+        next.platforms.tiktok.mode = "external_studio";
+        return next;
+      }
+
+      async function refreshObsDashboard() {
+        const dash = await window.streamHub.obsDashboard();
+        const select = document.getElementById("obsSceneSelect");
+        select.innerHTML = "";
+        (dash.scenes || []).forEach((s) => {
+          const opt = document.createElement("option");
+          opt.value = s.sceneName;
+          opt.textContent = s.sceneName;
+          select.appendChild(opt);
+        });
+        const textInputs = (dash.inputs || [])
+          .filter((i) => /text/i.test(i.inputKind || ""))
+          .map((i) => i.inputName);
+        document.getElementById("obsDashHint").textContent = dash.ok
+          ? `Stream: ${dash.stream?.outputActive ? "LIVE" : "idle"} · textes OBS: ${
+              textInputs.join(", ") || "—"
+            } · ingest: ${dash.ingest?.full || "—"}`
+          : dash.reason || "OBS offline";
+      }
+
+      function updateSelectedGameLabel() {
+        const el = document.getElementById("selectedGame");
+        if (!selectedGame) {
+          el.textContent =
+            "Aucun jeu sélectionné — la recherche choisira le meilleur match, sinon notification.";
+          return;
+        }
+        el.textContent = `Jeu sélectionné: ${selectedGame.name} (${selectedGame.platform}${
+          selectedGame.id || selectedGame.twitchId ? ` #${selectedGame.id || selectedGame.twitchId}` : ""
+        })`;
+      }
+
+      function renderGames(results) {
+        const root = document.getElementById("gameResults");
+        root.innerHTML = "";
+        if (!results?.length) {
+          root.innerHTML = `<div class="game"><span>Aucun résultat</span></div>`;
+          return;
+        }
+        results.forEach((g) => {
+          const row = document.createElement("div");
+          row.className = "game";
+          row.innerHTML = `<span>${g.name}</span><small>${g.platform} · score ${g.score ?? "-"}</small>`;
+          row.onclick = () => {
+            selectedGame = g;
+            document.getElementById("gameQuery").value = g.name;
+            document.querySelectorAll(".game").forEach((x) => x.classList.remove("active"));
+            row.classList.add("active");
+            updateSelectedGameLabel();
+          };
+          root.appendChild(row);
+        });
+      }
+
+      async function refreshStatus() {
+        const obs = await window.streamHub.obsStatus();
+        setPill("obsPill", obs.connected ? "OBS connecté" : `OBS: ${obs.message}`, obs.connected ? "ok" : "bad");
+        const ms = await window.streamHub.multistreamStatus();
+        setPill("msPill", ms.running ? "Multistream ON" : "Multistream OFF", ms.running ? "ok" : "warn");
+        document.getElementById("ingestHint").textContent = ms.ingestUrl
+          ? `Ingest OBS: ${ms.ingestUrl}`
+          : "Ingest: démarre le multistream pour obtenir l'URL locale";
+        const dests = (ms.destinations || []).map((d) => d.platform);
+        document.getElementById("destList").textContent = dests.length
+          ? `Destinations actives: ${dests.join(", ")} (+ TikTok Studio externe)`
+          : "Active des plateformes + clés, puis démarre le multistream.";
+
+        const ssn = await window.streamHub.ssnStatus();
+        setPill("ssnPill", ssn.connected ? "SSN OK" : `SSN: ${ssn.message}`, ssn.connected ? "ok" : "warn");
+        document.getElementById("ssnHint").textContent = ssn.message || "—";
+
+        const sb = await window.streamHub.streamerbotStatus();
+        const plats = (sb.platforms || []).join(", ");
+        setPill(
+          "sbPill",
+          sb.connected
+            ? plats
+              ? `SB OK · ${plats}`
+              : "Streamer.bot OK"
+            : `SB: ${sb.message}`,
+          sb.connected ? (plats ? "ok" : "warn") : "warn",
+        );
+        document.getElementById("sbHint").textContent = sb.message || "—";
+        await refreshObsDashboard();
+      }
+
+      async function init() {
+        config = await window.streamHub.getConfig();
+        renderPresets();
+        renderPlatforms();
+        fillObsFields();
+        await window.streamHub.obsConnect();
+        if (config.socialStreamNinja?.enabled) await window.streamHub.ssnConnect();
+        if (config.streamerBot?.enabled) await window.streamHub.streamerbotConnect();
+        await refreshStatus();
+        window.streamHub.onEvent((ev) => {
+          if (ev.type === "toast") toast(ev.title, ev.body, ev.level);
+          if (
+            ev.type === "obs-status" ||
+            ev.type === "multistream-status" ||
+            ev.type === "ssn-status" ||
+            ev.type === "streamerbot-status"
+          ) {
+            refreshStatus();
+          }
+          if (ev.type === "instagram-credentials") {
+            const hint = document.getElementById("igHint");
+            if (hint) {
+              hint.textContent = `Clé reçue · ${ev.rtmpUrl} · ${String(ev.streamKey || "").slice(0, 16)}…`;
+            }
+            window.streamHub.getConfig().then((c) => {
+              config = c;
+              renderPlatforms();
+            });
+          }
+          if (ev.type === "facebook-credentials") {
+            const hint = document.getElementById("fbHint");
+            if (hint) {
+              hint.textContent = `PAGE · ${String(ev.streamKey || "").slice(0, 18)}… · ${ev.title || ""}`;
+            }
+            window.streamHub.getConfig().then((c) => {
+              config = c;
+              renderPlatforms();
+            });
+          }
+          if (ev.type === "facebook-go-live") {
+            const hint = document.getElementById("fbHint");
+            if (hint) hint.textContent = "Direct Facebook lancé";
+          }
+        });
+      }
+
+      document.getElementById("btnSearch").onclick = async () => {
+        const q = document.getElementById("gameQuery").value;
+        const res = await window.streamHub.searchGames(q);
+        renderGames(res.results || []);
+        if (!res.best) toast("Jeu", `Introuvable: ${q}`, "warn");
+      };
+
+      document.getElementById("gameQuery").addEventListener("input", () => {
+        selectedGame = null;
+        updateSelectedGameLabel();
+        clearTimeout(searchTimer);
+        searchTimer = setTimeout(async () => {
+          const q = document.getElementById("gameQuery").value.trim();
+          if (q.length < 2) return;
+          const res = await window.streamHub.searchGames(q);
+          renderGames(res.results || []);
+        }, 350);
+      });
+
+      document.getElementById("btnApply").onclick = async () => {
+        config = collectConfigFromUi();
+        await window.streamHub.saveConfig(config);
+        const payload = {
+          title: document.getElementById("title").value,
+          gameQuery: document.getElementById("gameQuery").value,
+        };
+        if (selectedGame) {
+          payload.gameOverride = {
+            name: selectedGame.name,
+            twitchId: selectedGame.platform === "twitch" ? selectedGame.id : selectedGame.twitchId || null,
+          };
+        }
+        const res = await window.streamHub.applyTitles(payload);
+        await window.streamHub.syncObsScreens(Number(document.getElementById("screenCount").value));
+        if (res?.gameName) {
+          selectedGame = { name: res.gameName, twitchId: res.twitchGameId, platform: "twitch" };
+          updateSelectedGameLabel();
+        }
+      };
+
+      document.getElementById("btnSyncScene").onclick = async () => {
+        await window.streamHub.syncObsScreens(Number(document.getElementById("screenCount").value));
+        toast("OBS", "Scène synchronisée selon le nombre d'écrans", "info");
+      };
+
+      document.getElementById("btnSavePreset").onclick = async () => {
+        const title = document.getElementById("title").value.trim();
+        const gameQuery = document.getElementById("gameQuery").value.trim();
+        const label = prompt("Nom du preset ?", title.slice(0, 24) || "Preset");
+        if (!label) return;
+        config = await window.streamHub.savePreset({ label, title, gameQuery });
+        renderPresets();
+        toast("Preset", "Enregistré", "info");
+      };
+
+      document.getElementById("btnMsStart").onclick = async () => {
+        config = collectConfigFromUi();
+        await window.streamHub.saveConfig(config);
+        await window.streamHub.multistreamStart({
+          title: document.getElementById("title").value,
+          game: selectedGame?.name || document.getElementById("gameQuery").value,
+          screenCount: Number(document.getElementById("screenCount").value),
+        });
+        await refreshStatus();
+      };
+
+      document.getElementById("btnMsStop").onclick = async () => {
+        await window.streamHub.multistreamStop();
+        await refreshStatus();
+      };
+      document.getElementById("btnObsGoLive").onclick = () => window.streamHub.obsStartStream();
+      document.getElementById("btnObsStop").onclick = () => window.streamHub.obsStopStream();
+      document.getElementById("btnClip").onclick = () => window.streamHub.clip();
+      document.getElementById("btnOpenClips").onclick = () => window.streamHub.openClips();
+      document.getElementById("btnObsConnect").onclick = async () => {
+        config = collectConfigFromUi();
+        await window.streamHub.saveConfig(config);
+        await window.streamHub.obsConnect();
+        await refreshStatus();
+      };
+      document.getElementById("btnObsRefreshDash").onclick = () => refreshObsDashboard();
+      document.getElementById("btnObsSetScene").onclick = async () => {
+        const name = document.getElementById("obsSceneSelect").value;
+        const res = await window.streamHub.obsSetScene(name);
+        toast("OBS", res.ok ? `Scène → ${name}` : res.reason || "échec", res.ok ? "info" : "warn");
+      };
+      document.getElementById("btnSsnConnect").onclick = async () => {
+        config = collectConfigFromUi();
+        await window.streamHub.saveConfig(config);
+        await window.streamHub.ssnConnect();
+        await refreshStatus();
+      };
+      document.getElementById("btnSsnOpenDock").onclick = async () => {
+        const urls = await window.streamHub.ssnUrls();
+        if (urls.dock) window.open(urls.dock, "_blank");
+        else toast("SSN", "Session ID manquant", "warn");
+      };
+      document.getElementById("btnSbConnect").onclick = async () => {
+        config = collectConfigFromUi();
+        await window.streamHub.saveConfig(config);
+        await window.streamHub.streamerbotConnect();
+        await refreshStatus();
+      };
+      document.getElementById("btnSbRefreshActions").onclick = async () => {
+        const res = await window.streamHub.streamerbotActions();
+        const box = document.getElementById("sbActionsList");
+        if (!res.ok) {
+          box.textContent = res.reason || "Impossible de lister";
+          return;
+        }
+        box.textContent =
+          (res.actions || [])
+            .map((a) => `${a.name} [${a.subaction_count ?? "?"} sub]`)
+            .join(" · ") || "Aucune action";
+      };
+      document.getElementById("btnSbInstallActions").onclick = async () => {
+        const ok = confirm(
+          "Installer les actions AnimeBeat dans Streamer.bot ?\n\nLe hub redémarre Streamer.bot puis se reconnecte (attente port 4457).",
+        );
+        if (!ok) return;
+        const res = await window.streamHub.installSbActions();
+        document.getElementById("sbHint").textContent = res.ok
+          ? `OK: ${(res.installed || []).join(", ")} · ${res.status?.message || "reconnecte"}`
+          : res.reason || "échec";
+        if (res.ok) {
+          config = await window.streamHub.getConfig();
+          fillObsFields();
+        }
+      };
+      document.getElementById("btnSaveCfg").onclick = async () => {
+        config = collectConfigFromUi();
+        config = await window.streamHub.saveConfig(config);
+        toast("Config", "Sauvegardée", "info");
+      };
+      document.getElementById("btnOpenCfg").onclick = () => window.streamHub.openConfigFile();
+      document.getElementById("btnDiscover").onclick = async () => {
+        const res = await window.streamHub.discoverLocal();
+        config = res.config;
+        fillObsFields();
+        renderPlatforms();
+        document.getElementById("discoverHint").textContent =
+          `SSN session=${config.socialStreamNinja?.sessionId || "?"} · OBS ${config.obs?.host}:${config.obs?.port} · SB :${config.streamerBot?.port} · jeu action=${config.streamerBot?.actions?.setGame || "?"}`;
+        await window.streamHub.obsConnect();
+        await window.streamHub.ssnConnect();
+        await window.streamHub.streamerbotConnect();
+        await refreshStatus();
+      };
+      document.getElementById("btnLaunchSsn").onclick = () => window.streamHub.launchApp("socialstream");
+      document.getElementById("btnLaunchSb").onclick = () => window.streamHub.launchApp("streamerBot");
+      document.getElementById("btnLaunchObs").onclick = () => window.streamHub.launchApp("obs");
+
+      init();
+    </script>
+  </body>
+</html>

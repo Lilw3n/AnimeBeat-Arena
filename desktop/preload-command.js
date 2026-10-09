@@ -1,0 +1,46 @@
+const { contextBridge, ipcRenderer } = require("electron");
+
+contextBridge.exposeInMainWorld("streamHub", {
+  getConfig: () => ipcRenderer.invoke("stream:get-config"),
+  saveConfig: (cfg) => ipcRenderer.invoke("stream:save-config", cfg),
+  updateConfig: (patch) => ipcRenderer.invoke("stream:update-config", patch),
+  openConfigFile: () => ipcRenderer.invoke("stream:open-config-file"),
+  obsConnect: () => ipcRenderer.invoke("stream:obs-connect"),
+  obsStatus: () => ipcRenderer.invoke("stream:obs-status"),
+  obsList: () => ipcRenderer.invoke("stream:obs-list"),
+  searchGames: (q) => ipcRenderer.invoke("stream:search-games", q),
+  applyTitles: (payload) => ipcRenderer.invoke("stream:apply-titles", payload),
+  applyPreset: (id) => ipcRenderer.invoke("stream:apply-preset", id),
+  savePreset: (preset) => ipcRenderer.invoke("stream:save-preset", preset),
+  multistreamStart: (payload) => ipcRenderer.invoke("stream:multistream-start", payload),
+  multistreamStop: () => ipcRenderer.invoke("stream:multistream-stop"),
+  multistreamStatus: () => ipcRenderer.invoke("stream:multistream-status"),
+  obsStartStream: () => ipcRenderer.invoke("stream:obs-start-stream"),
+  obsStopStream: () => ipcRenderer.invoke("stream:obs-stop-stream"),
+  clip: () => ipcRenderer.invoke("stream:clip"),
+  openClips: () => ipcRenderer.invoke("stream:open-clips"),
+  syncObsScreens: (n) => ipcRenderer.invoke("stream:sync-obs-screens", n),
+  ssnConnect: () => ipcRenderer.invoke("stream:ssn-connect"),
+  ssnStatus: () => ipcRenderer.invoke("stream:ssn-status"),
+  ssnUrls: () => ipcRenderer.invoke("stream:ssn-urls"),
+  ssnSend: (msg) => ipcRenderer.invoke("stream:ssn-send", msg),
+  streamerbotConnect: () => ipcRenderer.invoke("stream:streamerbot-connect"),
+  streamerbotStatus: () => ipcRenderer.invoke("stream:streamerbot-status"),
+  streamerbotActions: () => ipcRenderer.invoke("stream:streamerbot-actions"),
+  obsDashboard: () => ipcRenderer.invoke("stream:obs-dashboard"),
+  obsSetScene: (name) => ipcRenderer.invoke("stream:obs-set-scene", name),
+  discoverLocal: () => ipcRenderer.invoke("stream:discover-local"),
+  installSbActions: () => ipcRenderer.invoke("stream:install-sb-actions"),
+  launchApp: (which) => ipcRenderer.invoke("stream:launch-app", which),
+  instagramPrepare: (payload) => ipcRenderer.invoke("stream:instagram-prepare", payload),
+  instagramGoLive: () => ipcRenderer.invoke("stream:instagram-go-live"),
+  instagramOpen: () => ipcRenderer.invoke("stream:instagram-open"),
+  facebookPrepare: (payload) => ipcRenderer.invoke("stream:facebook-prepare", payload),
+  facebookGoLive: (payload) => ipcRenderer.invoke("stream:facebook-go-live", payload),
+  facebookOpen: () => ipcRenderer.invoke("stream:facebook-open"),
+  onEvent: (cb) => {
+    const listener = (_e, payload) => cb(payload);
+    ipcRenderer.on("stream:event", listener);
+    return () => ipcRenderer.removeListener("stream:event", listener);
+  },
+});

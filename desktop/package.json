@@ -1,0 +1,62 @@
+{
+  "name": "animebeat-live-hub",
+  "version": "1.1.0",
+  "description": "AnimeBeat Live Hub + Stream Command (OBS, titres, multistream)",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron .",
+    "dist": "electron-builder --win nsis --publish never"
+  },
+  "keywords": [
+    "electron",
+    "tiktok",
+    "animebeat",
+    "obs",
+    "multistream"
+  ],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "@ffmpeg-installer/ffmpeg": "^1.1.0",
+    "node-media-server": "2.7.4",
+    "obs-websocket-js": "^5.0.8",
+    "ws": "^8.22.0"
+  },
+  "devDependencies": {
+    "electron": "^41.0.3",
+    "electron-builder": "^26.8.1"
+  },
+  "build": {
+    "appId": "com.animebeat.livehub",
+    "productName": "AnimeBeat Live Hub",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "main.js",
+      "sources.js",
+      "preload.js",
+      "preload-command.js",
+      "toolbar.html",
+      "command.html",
+      "stream/**/*",
+      "package.json"
+    ],
+    "win": {
+      "signAndEditExecutable": false,
+      "target": [
+        "nsis"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    },
+    "asarUnpack": [
+      "node_modules/@ffmpeg-installer/**",
+      "**/ffmpeg.exe"
+    ]
+  }
+}

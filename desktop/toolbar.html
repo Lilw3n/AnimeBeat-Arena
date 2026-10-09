@@ -1,0 +1,267 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AnimeBeat Live Hub</title>
+    <style>
+      :root {
+        --bg: #070b19;
+        --panel: #0d1430;
+        --border: rgba(130, 154, 255, 0.32);
+        --text: #f3f6ff;
+        --muted: #b6c0db;
+        --off: #3a2030;
+      }
+      html, body {
+        margin: 0;
+        padding: 0;
+        background: var(--bg);
+        color: var(--text);
+        font-family: Segoe UI, sans-serif;
+        overflow: hidden;
+      }
+      .toolbar {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        padding: 10px 12px;
+        background: linear-gradient(180deg, #101a3b 0%, #0a122d 100%);
+        border-bottom: 1px solid var(--border);
+        box-sizing: border-box;
+      }
+      .row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+      .brand { min-width: 200px; }
+      .title { font-size: 13px; font-weight: 600; }
+      .hint { font-size: 11px; color: var(--muted); margin-top: 2px; }
+      .group {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 4px 8px;
+        background: #0d1430;
+        flex-wrap: wrap;
+      }
+      .group > .label {
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: var(--muted);
+      }
+      .slot {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+      }
+      .slot label { font-size: 11px; color: var(--muted); }
+      .slot.is-hidden-slot { opacity: 0.3; pointer-events: none; }
+      .source-power.is-off { background: var(--off); border-radius: 6px; padding: 1px; }
+      select {
+        border: 1px solid var(--border);
+        background: #111a3d;
+        color: var(--text);
+        border-radius: 6px;
+        padding: 4px 6px;
+        font-size: 11px;
+        max-width: 110px;
+      }
+      button {
+        border: 1px solid var(--border);
+        background: var(--panel);
+        color: var(--text);
+        border-radius: 8px;
+        padding: 5px 9px;
+        font-size: 11px;
+        cursor: pointer;
+        white-space: nowrap;
+      }
+      button:hover { background: #18234d; }
+      .primary {
+        border: none;
+        background: linear-gradient(120deg, #6e46ff, #14b8ff);
+      }
+      button.off {
+        background: #4a2030;
+        border-color: rgba(248, 113, 113, 0.45);
+        color: #fecaca;
+      }
+      .spacer { flex: 1; }
+      .slots-wrap { max-height: 120px; overflow: auto; }
+    </style>
+  </head>
+  <body>
+    <div class="toolbar" id="toolbar">
+      <div class="row">
+        <div class="brand">
+          <div class="title">AnimeBeat Live Hub</div>
+          <div class="hint">Ctrl+1..9 / Ctrl+0=10 · Ctrl+S Command · Ctrl+C chat · Ctrl+F</div>
+        </div>
+        <div class="group" id="screenButtons">
+          <span class="label">Écrans</span>
+        </div>
+        <div class="spacer"></div>
+        <div class="group">
+          <button data-chat-toggle="on" class="primary">Chat ON</button>
+          <select data-chat-mode>
+            <option value="ssn">Chat SSN</option>
+            <option value="mix">Chat Mix</option>
+            <option value="kick">Kick</option>
+            <option value="twitch">Twitch</option>
+            <option value="tiktok">TikTok</option>
+            <option value="youtube">YouTube</option>
+            <option value="telegram">Telegram</option>
+          </select>
+          <button class="primary" data-action="open-command">Stream Command</button>
+          <button data-action="toggle-fullscreen">Plein écran</button>
+        </div>
+      </div>
+      <div class="row">
+        <div class="group" id="sourcePowers">
+          <span class="label">Sources</span>
+        </div>
+      </div>
+      <div class="row">
+        <div class="group slots-wrap" id="slotConfigs">
+          <span class="label">Slots</span>
+        </div>
+      </div>
+    </div>
+    <script>
+      let screenCount = 1;
+      let catalog = { powerSources: [], sources: [], slotCount: 10, maxScreens: 10 };
+
+      function reportToolbarHeight() {
+        const toolbar = document.getElementById("toolbar");
+        const height = Math.ceil(toolbar.getBoundingClientRect().height);
+        if (height > 0) window.liveHub.setToolbarHeight(height);
+      }
+
+      function updatePowerButton(button, isOn) {
+        const label = button.getAttribute("data-label") || "Source";
+        button.setAttribute("data-source-power", isOn ? "on" : "off");
+        button.textContent = isOn ? `${label} ON` : `${label} OFF`;
+        button.classList.toggle("primary", isOn);
+        button.classList.toggle("off", !isOn);
+        button.closest(".source-power")?.classList.toggle("is-off", !isOn);
+      }
+
+      function updateSlotVisibility() {
+        document.querySelectorAll("[data-slot]").forEach((slot) => {
+          const idx = Number(slot.getAttribute("data-slot"));
+          slot.classList.toggle("is-hidden-slot", idx >= screenCount);
+        });
+        document.querySelectorAll("[data-count]").forEach((btn) => {
+          btn.classList.toggle("primary", Number(btn.getAttribute("data-count")) === screenCount);
+        });
+      }
+
+      function sourceOptionsHtml() {
+        return catalog.sources
+          .map((s) => `<option value="${s.id}">${s.title}</option>`)
+          .join("");
+      }
+
+      function buildUi() {
+        const screens = document.getElementById("screenButtons");
+        screens.querySelectorAll("[data-count]").forEach((n) => n.remove());
+        for (let n = 1; n <= catalog.maxScreens; n += 1) {
+          const btn = document.createElement("button");
+          btn.setAttribute("data-count", String(n));
+          btn.textContent = String(n);
+          btn.addEventListener("click", () => {
+            screenCount = n;
+            window.liveHub.setScreenCount(n);
+            updateSlotVisibility();
+            requestAnimationFrame(reportToolbarHeight);
+          });
+          screens.appendChild(btn);
+        }
+
+        const powers = document.getElementById("sourcePowers");
+        powers.querySelectorAll(".source-power").forEach((n) => n.remove());
+        catalog.powerSources.forEach((src) => {
+          const wrap = document.createElement("div");
+          wrap.className = "source-power";
+          wrap.setAttribute("data-power-wrap", src.id);
+          const btn = document.createElement("button");
+          btn.setAttribute("data-source-id", src.id);
+          btn.setAttribute("data-label", src.title);
+          btn.title = `Coupe ${src.title}`;
+          updatePowerButton(btn, true);
+          btn.addEventListener("click", () => {
+            const on = btn.getAttribute("data-source-power") === "on";
+            window.liveHub.setSourcePower(src.id, !on);
+            updatePowerButton(btn, !on);
+          });
+          wrap.appendChild(btn);
+          powers.appendChild(wrap);
+        });
+
+        const slots = document.getElementById("slotConfigs");
+        slots.querySelectorAll("[data-slot]").forEach((n) => n.remove());
+        for (let i = 0; i < catalog.slotCount; i += 1) {
+          const slot = document.createElement("div");
+          slot.className = "slot";
+          slot.setAttribute("data-slot", String(i));
+          slot.innerHTML = `
+            <label>E${i + 1}</label>
+            <select data-slot-source="${i}">${sourceOptionsHtml()}</select>
+            <button data-slot-mode="live" data-slot-index="${i}">Live</button>
+            <button data-slot-mode="live-fs" data-slot-index="${i}">FS</button>
+            <button data-slot-mode="site" data-slot-index="${i}">Site</button>
+          `;
+          const select = slot.querySelector("select");
+          const defaultId = catalog.powerSources[i % catalog.powerSources.length]?.id;
+          if (defaultId) select.value = defaultId;
+          select.addEventListener("change", (e) => {
+            window.liveHub.setSlotSource(i, e.currentTarget.value);
+          });
+          slot.querySelectorAll("[data-slot-mode]").forEach((btn) => {
+            btn.addEventListener("click", () => {
+              window.liveHub.setSlotMode(i, btn.getAttribute("data-slot-mode"));
+            });
+          });
+          slots.appendChild(slot);
+        }
+
+        updateSlotVisibility();
+        reportToolbarHeight();
+      }
+
+      document.querySelector("[data-chat-toggle]").addEventListener("click", (e) => {
+        const btn = e.currentTarget;
+        const on = btn.getAttribute("data-chat-toggle") === "on";
+        const next = !on;
+        btn.setAttribute("data-chat-toggle", next ? "on" : "off");
+        btn.textContent = next ? "Chat ON" : "Chat OFF";
+        btn.classList.toggle("primary", next);
+        window.liveHub.setChatVisible(next);
+      });
+
+      document.querySelector("[data-chat-mode]").addEventListener("change", (e) => {
+        window.liveHub.setChatMode(e.currentTarget.value);
+      });
+      document.querySelector("[data-action='toggle-fullscreen']").addEventListener("click", () => {
+        window.liveHub.toggleFullScreen();
+      });
+      document.querySelector("[data-action='open-command']").addEventListener("click", () => {
+        window.liveHub.openCommandCenter();
+      });
+
+      const ro = new ResizeObserver(() => reportToolbarHeight());
+      ro.observe(document.getElementById("toolbar"));
+
+      (async () => {
+        catalog = await window.liveHub.getCatalog();
+        buildUi();
+      })();
+    </script>
+  </body>
+</html>

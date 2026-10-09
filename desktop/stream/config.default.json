@@ -1,0 +1,139 @@
+{
+  "obs": {
+    "enabled": true,
+    "host": "127.0.0.1",
+    "port": 4455,
+    "password": "",
+    "textSources": {
+      "title": "StreamTitle",
+      "game": "StreamGame"
+    },
+    "screenScenes": {
+      "1": "Solo",
+      "2": "Dual",
+      "3": "Triple",
+      "4": "Quad",
+      "5": "Grid5",
+      "6": "Grid6",
+      "7": "Grid7",
+      "8": "Grid8",
+      "9": "Grid9",
+      "10": "Grid10"
+    },
+    "autoSwitchSceneOnScreenCount": true
+  },
+  "multistream": {
+    "enabled": true,
+    "rtmpPort": 1935,
+    "httpPort": 8000,
+    "appName": "live",
+    "streamKey": "obs",
+    "ffmpegPath": ""
+  },
+  "platforms": {
+    "twitch": {
+      "enabled": false,
+      "login": "",
+      "clientId": "",
+      "clientSecret": "",
+      "accessToken": "",
+      "broadcasterId": "",
+      "streamKey": "",
+      "rtmpUrl": "rtmp://live.twitch.tv/app"
+    },
+    "kick": {
+      "enabled": false,
+      "streamKey": "",
+      "rtmpUrl": "rtmps://fa723fc1b171.global-contribute.live-video.net/app",
+      "categoryName": ""
+    },
+    "facebook": {
+      "enabled": false,
+      "useLiveProducer": true,
+      "autoGoLive": true,
+      "autoCreateLive": false,
+      "pageId": "100036165385264",
+      "pageUrl": "https://www.facebook.com/profile.php?id=100036165385264",
+      "accessToken": "",
+      "titleTemplate": "{title} | {game}",
+      "streamKey": "",
+      "rtmpUrl": "rtmps://live-api-s.facebook.com:443/rtmp",
+      "note": "Toujours la PAGE (pas le profil perso). Live Producer: clé persistante + titre/jeu + Go Live auto."
+    },
+    "instagram": {
+      "enabled": false,
+      "autoPrepare": true,
+      "streamKey": "",
+      "rtmpUrl": "rtmps://live-upload.instagram.com:443/rtmp",
+      "note": "Live Producer automatisé : titre hub → Suivant → URL+clé (nouvelle à chaque live). Fenêtre à garder ouverte."
+    },
+    "tiktok": {
+      "enabled": true,
+      "mode": "external_studio",
+      "note": "Toujours via TikTok LIVE Studio en parallèle d'OBS"
+    },
+    "youtube": {
+      "enabled": false,
+      "streamKey": "",
+      "rtmpUrl": "rtmp://a.rtmp.youtube.com/live2"
+    },
+    "custom": {
+      "enabled": false,
+      "label": "Custom RTMP",
+      "streamKey": "",
+      "rtmpUrl": ""
+    }
+  },
+  "titleTemplates": {
+    "twitch": "{title}",
+    "kick": "{title}",
+    "facebook": "{title} — {game}",
+    "instagram": "{title}",
+    "youtube": "{title} | {game}",
+    "obs": "{title}"
+  },
+  "presets": [
+    {
+      "id": "anime-ranking",
+      "label": "Anime Ranking",
+      "title": "Classement anime en live",
+      "gameQuery": "Just Chatting"
+    },
+    {
+      "id": "tier-list",
+      "label": "Tier List",
+      "title": "Tier list communautaire",
+      "gameQuery": "Just Chatting"
+    }
+  ],
+  "clips": {
+    "outputDir": "",
+    "makeVertical": true,
+    "makeHorizontal": true
+  },
+  "socialStreamNinja": {
+    "enabled": true,
+    "sessionId": "",
+    "dockUrl": "",
+    "featuredUrl": "",
+    "chatChannel": 4,
+    "useAsHubChat": true,
+    "note": "Auto-détecté depuis %AppData%/socialstream. Active Remote API + Send chat to API server dans SSN."
+  },
+  "streamerBot": {
+    "enabled": true,
+    "host": "127.0.0.1",
+    "port": 4457,
+    "actions": {
+      "setTitle": "AnimeBeat Set Title",
+      "setGame": "AnimeBeat Set Game",
+      "setTitleAndGame": "AnimeBeat Set Title Game"
+    },
+    "note": "WS principal = 4457 (pas 8080 nginx). Titres/jeux via actions AnimeBeat + comptes Twitch/Kick déjà liés dans Streamer.bot."
+  },
+  "appPaths": {
+    "socialstream": "",
+    "streamerBot": "",
+    "obs": ""
+  }
+}
