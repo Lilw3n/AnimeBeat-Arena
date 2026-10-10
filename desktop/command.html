@@ -2859,51 +2859,72 @@
         });
       }
 
+      let titlesApplying = false;
+
       async function applyTitlesTo(platforms) {
-        config = collectConfigFromUi();
-        await window.streamHub.saveConfig(config);
-        const payload = {
-          title: document.getElementById("title").value,
-          gameQuery: document.getElementById("gameQuery").value,
-          platforms,
-        };
-        if (selectedGame) {
-          payload.gameOverride = {
-            name: selectedGame.name,
-            twitchId: selectedGame.platform === "twitch" ? selectedGame.id : selectedGame.twitchId || null,
+        if (titlesApplying) {
+          toast("Titres", "Application déjà en cours — patiente…", "warn");
+          return { ok: false, busy: true, reason: "déjà en cours" };
+        }
+        titlesApplying = true;
+        const applyBtns = [
+          document.getElementById("btnApply"),
+          ...document.querySelectorAll("[data-apply-one]"),
+        ].filter(Boolean);
+        applyBtns.forEach((b) => {
+          b.disabled = true;
+        });
+        try {
+          config = collectConfigFromUi();
+          await window.streamHub.saveConfig(config);
+          const payload = {
+            title: document.getElementById("title").value,
+            gameQuery: document.getElementById("gameQuery").value,
+            platforms,
           };
+          if (selectedGame) {
+            payload.gameOverride = {
+              name: selectedGame.name,
+              twitchId: selectedGame.platform === "twitch" ? selectedGame.id : selectedGame.twitchId || null,
+            };
+          }
+          const res = await window.streamHub.applyTitles(payload);
+          if (platforms.includes("obs") || platforms === "all") {
+            await window.streamHub.syncObsScreens(Number(document.getElementById("screenCount").value));
+          }
+          if (res?.gameName) {
+            selectedGame = { name: res.gameName, twitchId: res.twitchGameId, platform: "twitch" };
+            updateSelectedGameLabel();
+          }
+          const fbTitle = document.getElementById("fbLiveTitle");
+          const fbGame = document.getElementById("fbLiveGame");
+          if (fbTitle && (platforms.includes("facebook") || platforms === "all")) {
+            fbTitle.value = res?.platformTitles?.facebook || payload.title;
+          }
+          if (fbGame && res?.gameName) fbGame.value = res.gameName;
+          const bits = [];
+          if (res?.liveApplied?.length) bits.push(`live ${res.liveApplied.join(",")}`);
+          if (res?.savedOnly?.length) bits.push(`sauvé ${res.savedOnly.join(",")}`);
+          if (res?.failedPlatforms?.length) bits.push(`échec ${res.failedPlatforms.join(",")}`);
+          if (res?.pageMeta?.ok) bits.push("jeux vérifiés OK");
+          else if (res?.pageMeta?.fixed) bits.push("jeux corrigés via pages");
+          else if (res?.pageMeta?.verify?.mismatches?.length) {
+            bits.push(`jeux KO: ${res.pageMeta.verify.mismatches.join(",")}`);
+          }
+          toast(
+            "Titres",
+            bits.join(" · ") || (res?.ok ? "OK" : res?.reason || "échec"),
+            res?.failedPlatforms?.length || res?.pageMeta?.ok === false ? "warn" : "info",
+          );
+          const hint = document.getElementById("liveVerifyHint");
+          if (hint && bits.length) hint.textContent = bits.join(" · ");
+          return res;
+        } finally {
+          titlesApplying = false;
+          applyBtns.forEach((b) => {
+            b.disabled = false;
+          });
         }
-        const res = await window.streamHub.applyTitles(payload);
-        if (platforms.includes("obs") || platforms === "all") {
-          await window.streamHub.syncObsScreens(Number(document.getElementById("screenCount").value));
-        }
-        if (res?.gameName) {
-          selectedGame = { name: res.gameName, twitchId: res.twitchGameId, platform: "twitch" };
-          updateSelectedGameLabel();
-        }
-        const fbTitle = document.getElementById("fbLiveTitle");
-        const fbGame = document.getElementById("fbLiveGame");
-        if (fbTitle && (platforms.includes("facebook") || platforms === "all")) {
-          fbTitle.value = res?.platformTitles?.facebook || payload.title;
-        }
-        if (fbGame && res?.gameName) fbGame.value = res.gameName;
-        const bits = [];
-        if (res?.liveApplied?.length) bits.push(`live ${res.liveApplied.join(",")}`);
-        if (res?.savedOnly?.length) bits.push(`sauvé ${res.savedOnly.join(",")}`);
-        if (res?.failedPlatforms?.length) bits.push(`échec ${res.failedPlatforms.join(",")}`);
-        if (res?.pageMeta?.ok) bits.push("jeux vérifiés OK");
-        else if (res?.pageMeta?.fixed) bits.push("jeux corrigés via pages");
-        else if (res?.pageMeta?.verify?.mismatches?.length) {
-          bits.push(`jeux KO: ${res.pageMeta.verify.mismatches.join(",")}`);
-        }
-        toast(
-          "Titres",
-          bits.join(" · ") || (res?.ok ? "OK" : res?.reason || "échec"),
-          res?.failedPlatforms?.length || res?.pageMeta?.ok === false ? "warn" : "info",
-        );
-        const hint = document.getElementById("liveVerifyHint");
-        if (hint && bits.length) hint.textContent = bits.join(" · ");
-        return res;
       }
 
       async function runLiveVerify(probe) {

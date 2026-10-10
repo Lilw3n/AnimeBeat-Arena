@@ -38,7 +38,30 @@ function wants(targets, name) {
   return targets.includes(name);
 }
 
-async function applyEverywhere(config, { title, gameQuery, gameOverride, screenCount, platforms }) {
+function withTimeout(promise, ms, label) {
+  let timer;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error(label || "timeout")), ms);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
+
+let applyChain = Promise.resolve();
+
+/** File d’attente : un seul apply à la fois (anti double-clic / courses fenêtres). */
+function applyEverywhere(config, opts) {
+  const job = applyChain.then(
+    () => applyEverywhereUnlocked(config, opts),
+    () => applyEverywhereUnlocked(config, opts),
+  );
+  applyChain = job.then(
+    () => undefined,
+    () => undefined,
+  );
+  return job;
+}
+
+async function applyEverywhereUnlocked(config, { title, gameQuery, gameOverride, screenCount, platforms }) {
   const cleanTitle = String(title || "").trim();
   if (!cleanTitle) {
     return { ok: false, reason: "Titre vide" };
@@ -169,10 +192,19 @@ async function applyEverywhere(config, { title, gameQuery, gameOverride, screenC
   }
 
   if (wants(targets, "twitch")) {
-    const tw = await twitch.updateChannel(config.platforms.twitch || {}, {
-      title: platformTitles.twitch,
-      gameId: twitchGameId,
-    });
+    let tw;
+    try {
+      tw = await withTimeout(
+        twitch.updateChannel(config.platforms.twitch || {}, {
+          title: platformTitles.twitch,
+          gameId: twitchGameId,
+        }),
+        20000,
+        "timeout Twitch API",
+      );
+    } catch (err) {
+      tw = { ok: false, platform: "twitch", reason: err.message };
+    }
     if (tw?.ok) tw.live = true;
     if (tw?.skipped && results.streamerbot?.ok) {
       results.platforms.push({
@@ -246,46 +278,87 @@ async function applyEverywhere(config, { title, gameQuery, gameOverride, screenC
     const fbDesc =
       String(fbCfg.lastDescription || "").trim() ||
       `${cleanTitle}${gameName ? ` — ${gameName}` : ""}`;
-    results.facebook = await facebook.updateTitleGame({
-      title: platformTitles.facebook,
-      game: gameName,
-      description: fbDesc,
-      facebookConfig: fbCfg,
-      autoOpen: true,
-    });
-    results.platforms.push(results.facebook);
-    // Lien sticky aussi (live ou pré-live)
+    try {
+      results.facebook = await withTimeout(
+        facebook.updateTitleGame({
+          title: platformTitles.facebook,
+          game: gameName,
+          description: fbDesc,
+          facebookConfig: fbCfg,
+          autoOpen: true,
+        }),
+        45000,
+        "timeout Facebook Live Producer",
+      );
+      results.platforms.push(results.facebook);
+    } catch (err) {
+      results.facebook = { ok: false, platform: "facebook", reason: err.message };
+      results.platforms.push(results.facebook);
+    }
     if (fbCfg.linkUrl) {
-      results.facebookLink = await facebook.updateStickyLink({
-        linkUrl: fbCfg.linkUrl,
-        linkTitle: fbCfg.linkTitle || "",
-        facebookConfig: fbCfg,
-        autoOpen: true,
-      });
-      results.platforms.push({
-        ...results.facebookLink,
-        platform: "facebook-link",
-      });
+      try {
+        results.facebookLink = await withTimeout(
+          facebook.updateStickyLink({
+            linkUrl: fbCfg.linkUrl,
+            linkTitle: fbCfg.linkTitle || "",
+            facebookConfig: fbCfg,
+            autoOpen: true,
+          }),
+          30000,
+          "timeout Facebook sticky link",
+        );
+        results.platforms.push({
+          ...results.facebookLink,
+          platform: "facebook-link",
+        });
+      } catch (err) {
+        results.platforms.push({
+          ok: false,
+          platform: "facebook-link",
+          reason: err.message,
+        });
+      }
     }
   }
 
   if (wants(targets, "instagram")) {
     const igCfg = config.platforms?.instagram || {};
-    results.instagram = await instagram.updateTitle({
-      title: platformTitles.instagram,
-      autoOpen: true,
-    });
-    results.platforms.push(results.instagram);
+    try {
+      results.instagram = await withTimeout(
+        instagram.updateTitle({
+          title: platformTitles.instagram,
+          autoOpen: true,
+        }),
+        45000,
+        "timeout Instagram Live Producer",
+      );
+      results.platforms.push(results.instagram);
+    } catch (err) {
+      results.instagram = { ok: false, platform: "instagram", reason: err.message };
+      results.platforms.push(results.instagram);
+    }
     if (igCfg.linkUrl) {
-      results.instagramLink = await instagram.updateStickyLink({
-        linkUrl: igCfg.linkUrl,
-        linkTitle: igCfg.linkTitle || "",
-        autoOpen: true,
-      });
-      results.platforms.push({
-        ...results.instagramLink,
-        platform: "instagram-link",
-      });
+      try {
+        results.instagramLink = await withTimeout(
+          instagram.updateStickyLink({
+            linkUrl: igCfg.linkUrl,
+            linkTitle: igCfg.linkTitle || "",
+            autoOpen: true,
+          }),
+          30000,
+          "timeout Instagram sticky link",
+        );
+        results.platforms.push({
+          ...results.instagramLink,
+          platform: "instagram-link",
+        });
+      } catch (err) {
+        results.platforms.push({
+          ok: false,
+          platform: "instagram-link",
+          reason: err.message,
+        });
+      }
     }
   }
 

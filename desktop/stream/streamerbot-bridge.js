@@ -67,7 +67,13 @@ function sendRequest(payload, timeoutMs = 8000) {
       reject(new Error(`Timeout Streamer.bot: ${payload.request}`));
     }, timeoutMs);
     pending.set(id, { resolve, reject, timer });
-    ws.send(JSON.stringify(body));
+    try {
+      ws.send(JSON.stringify(body));
+    } catch (err) {
+      clearTimeout(timer);
+      pending.delete(id);
+      reject(err instanceof Error ? err : new Error(String(err)));
+    }
   });
 }
 
@@ -274,7 +280,23 @@ async function connect(config, options = {}) {
     return getStatus();
   }
 
-  if (connecting) return getStatus();
+  // Déjà connecté : ne pas casser le WS (évite courses apply / reconnect).
+  if (
+    !options.force &&
+    lastStatus.connected &&
+    ws &&
+    ws.readyState === WebSocket.OPEN
+  ) {
+    return getStatus();
+  }
+
+  if (connecting) {
+    // Attendre la connexion en cours au lieu de renvoyer un statut stale.
+    for (let i = 0; i < 40 && connecting; i += 1) {
+      await new Promise((r) => setTimeout(r, 250));
+    }
+    return getStatus();
+  }
   connecting = true;
 
   // Keep retrying: Streamer.bot can take 10–20s after launch before :4457 listens.
@@ -347,18 +369,21 @@ async function getBroadcaster() {
   };
 }
 
-async function doAction(actionRef, args = {}) {
+async function doAction(actionRef, args = {}, timeoutMs = 15000) {
   const action =
     typeof actionRef === "string"
       ? { name: actionRef }
       : actionRef.id
         ? { id: actionRef.id }
         : { name: actionRef.name };
-  return sendRequest({
-    request: "DoAction",
-    action,
-    args,
-  });
+  return sendRequest(
+    {
+      request: "DoAction",
+      action,
+      args,
+    },
+    timeoutMs,
+  );
 }
 
 function resolveActionNames(config, actions) {
@@ -384,12 +409,14 @@ function resolveActionNames(config, actions) {
   };
 }
 
-async function applyTitleAndGame(config, { title, game }) {
+async function applyTitleAndGameOnce(config, { title, game }) {
   const sb = config.streamerBot || {};
   if (!sb.enabled) return { ok: false, skipped: true, platform: "streamerbot" };
 
-  if (!lastStatus.connected) await connect(config, { retries: 8, delayMs: 1500 });
-  if (!lastStatus.connected) {
+  if (!lastStatus.connected || !ws || ws.readyState !== WebSocket.OPEN) {
+    await connect(config, { retries: 8, delayMs: 1500 });
+  }
+  if (!lastStatus.connected || !ws || ws.readyState !== WebSocket.OPEN) {
     return { ok: false, platform: "streamerbot", reason: "Streamer.bot non connecté (port 4457 ?)" };
   }
   const platforms = lastStatus.platforms || platformList(lastStatus.broadcaster);
@@ -417,19 +444,19 @@ async function applyTitleAndGame(config, { title, game }) {
     if (names.setTitleAndGame) {
       results.push({
         action: names.setTitleAndGame,
-        ...(await doAction(names.setTitleAndGame, args)),
+        ...(await doAction(names.setTitleAndGame, args, 18000)),
       });
     } else {
       if (names.setTitle && title) {
         results.push({
           action: names.setTitle,
-          ...(await doAction(names.setTitle, args)),
+          ...(await doAction(names.setTitle, args, 15000)),
         });
       }
       if (names.setGame && game) {
         results.push({
           action: names.setGame,
-          ...(await doAction(names.setGame, args)),
+          ...(await doAction(names.setGame, args, 15000)),
         });
       }
     }
@@ -461,6 +488,22 @@ async function applyTitleAndGame(config, { title, game }) {
   } catch (err) {
     return { ok: false, platform: "streamerbot", reason: err.message };
   }
+}
+
+function isTransientSbFailure(result) {
+  const reason = String(result?.reason || "");
+  return /timeout|non connecté|déconnect|reconnect|ws error|ECONNRESET|not connected/i.test(reason);
+}
+
+async function applyTitleAndGame(config, { title, game }) {
+  let result = await applyTitleAndGameOnce(config, { title, game });
+  if (result.ok || result.skipped || !isTransientSbFailure(result)) return result;
+
+  // Une seule reprise après reconnexion forcée
+  await connect(config, { force: true, retries: 5, delayMs: 1200 });
+  result = await applyTitleAndGameOnce(config, { title, game });
+  if (result.ok) result.retried = true;
+  return result;
 }
 
 module.exports = {
