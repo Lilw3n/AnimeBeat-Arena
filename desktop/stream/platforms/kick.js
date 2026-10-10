@@ -85,9 +85,39 @@ async function updateChannelMeta(kickConfig, { title, gameName }) {
   };
 }
 
+async function fetchChannelViewers(login) {
+  const slug = String(login || "")
+    .trim()
+    .replace(/^@/, "")
+    .toLowerCase();
+  if (!slug) return { ok: false, reason: "login Kick manquant" };
+  try {
+    const res = await fetch(`https://kick.com/api/v2/channels/${encodeURIComponent(slug)}`, {
+      headers: {
+        Accept: "application/json",
+        "User-Agent": "AnimeBeatLiveHub/1.0",
+      },
+    });
+    if (!res.ok) return { ok: false, status: res.status };
+    const json = await res.json();
+    const live = json?.livestream || null;
+    if (!live) return { ok: true, live: false, count: 0, slug };
+    return {
+      ok: true,
+      live: true,
+      count: Number(live.viewer_count) || 0,
+      title: live.session_title || "",
+      slug,
+    };
+  } catch (err) {
+    return { ok: false, reason: err.message || "kick viewers" };
+  }
+}
+
 module.exports = {
   searchCategories,
   getRtmpDestination,
   updateChannelMeta,
+  fetchChannelViewers,
   ROOT_CATEGORY_NAMES,
 };

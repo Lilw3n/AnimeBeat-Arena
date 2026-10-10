@@ -2,6 +2,7 @@ const WebSocket = require("ws");
 const { notify, pushToWindows } = require("./notify");
 const companions = require("./companions");
 const ssapp = require("./ssapp-control");
+const liveViewers = require("./live-viewers");
 
 let ws = null;
 let lastStatus = { connected: false, message: "SSN déconnecté", sessionId: "" };
@@ -91,6 +92,11 @@ function connect(config) {
       data = JSON.parse(String(raw));
     } catch {
       return;
+    }
+    try {
+      liveViewers.ingestSsnPayload(data);
+    } catch {
+      /* ignore */
     }
     const chat = normalizeChat(data);
     if (!chat) return;

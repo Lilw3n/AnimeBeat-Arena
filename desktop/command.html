@@ -279,6 +279,7 @@
       </div>
     </header>
     <nav class="jump-nav" aria-label="Accès rapide">
+      <a href="#sec-live-viewers">Viewers</a>
       <a href="#sec-live-links">Liens live</a>
       <a href="#sec-titles">Titres &amp; jeux</a>
       <a href="#sec-ig-link">Lien Instagram</a>
@@ -307,6 +308,20 @@
           <button type="button" id="btnUpdOpenRelease">Ouvrir dossier release</button>
         </div>
         <p class="hint" id="updHint">—</p>
+      </section>
+
+      <section class="full" id="sec-live-viewers">
+        <h2>Viewers en direct</h2>
+        <p class="hint">
+          <b>Kick</b> = API publique (temps réel). <b>TikTok / IG / FB</b> = via Social Stream Ninja
+          (active « Show viewer count » ou Hype Mode + source ouverte).
+          TikTok : total public uniquement — <b>pas</b> de liste des viewers privés / guests.
+        </p>
+        <div class="actions" style="margin-bottom:8px">
+          <button type="button" id="btnRefreshViewers">Rafraîchir viewers</button>
+        </div>
+        <div id="liveViewersRow" class="row3" style="gap:10px"></div>
+        <p class="hint" id="liveViewersHint">—</p>
       </section>
 
       <section class="full" id="sec-live-links">
@@ -1873,6 +1888,51 @@
         });
       }
 
+      function renderLiveViewers(snap) {
+        const root = document.getElementById("liveViewersRow");
+        const hint = document.getElementById("liveViewersHint");
+        if (!root) return;
+        const order = ["kick", "twitch", "tiktok", "instagram", "facebook", "youtube"];
+        const labels = {
+          kick: "Kick",
+          twitch: "Twitch",
+          tiktok: "TikTok",
+          instagram: "Instagram",
+          facebook: "Facebook",
+          youtube: "YouTube",
+        };
+        const platforms = snap?.platforms || {};
+        root.innerHTML = "";
+        for (const key of order) {
+          const p = platforms[key] || {};
+          const card = document.createElement("div");
+          card.className = "pill";
+          const count = p.count == null ? "—" : String(p.count);
+          const live =
+            p.live === true ? "🔴" : p.live === false ? "⚫" : "·";
+          const likes =
+            typeof p.likes === "number" ? ` · ❤ ${p.likes}` : "";
+          card.textContent = `${live} ${labels[key] || key}: ${count}${likes}`;
+          if (p.live === true) card.classList.add("ok");
+          else if (p.live === false) card.classList.add("warn");
+          root.appendChild(card);
+        }
+        if (hint) {
+          hint.textContent =
+            "Kick via API · TikTok/IG/FB via SSN (Show viewer count). TikTok = total public seulement, pas de viewers privés.";
+        }
+      }
+
+      async function refreshLiveViewers() {
+        if (!window.streamHub?.liveViewers) return;
+        try {
+          const snap = await window.streamHub.liveViewersRefresh();
+          renderLiveViewers(snap);
+        } catch {
+          /* ignore */
+        }
+      }
+
       async function refreshStatus() {
         const obs = await window.streamHub.obsStatus();
         setPill("obsPill", obs.connected ? "OBS connecté" : `OBS: ${obs.message}`, obs.connected ? "ok" : "bad");
@@ -1889,6 +1949,12 @@
         const ssn = await window.streamHub.ssnStatus();
         setPill("ssnPill", ssn.connected ? "SSN OK" : `SSN: ${ssn.message}`, ssn.connected ? "ok" : "warn");
         document.getElementById("ssnHint").textContent = ssn.message || "—";
+        try {
+          const viewers = await window.streamHub.liveViewers();
+          renderLiveViewers(viewers);
+        } catch {
+          /* ignore */
+        }
 
         const sb = await window.streamHub.streamerbotStatus();
         const plats = (sb.platforms || []).join(", ");
@@ -2012,6 +2078,9 @@
             ev.type === "streamerbot-status"
           ) {
             refreshStatus();
+          }
+          if (ev.type === "live-viewers") {
+            renderLiveViewers(ev);
           }
           if (ev.type === "instagram-credentials") {
             const hint = document.getElementById("igHint");
@@ -2675,6 +2744,10 @@
         await window.streamHub.ssnConnect();
         await refreshStatus();
       };
+      document.getElementById("btnRefreshViewers")?.addEventListener("click", async () => {
+        await refreshLiveViewers();
+        toast("Viewers", "Compteurs rafraîchis", "info");
+      });
       document.getElementById("btnSsnOpenDock").onclick = async () => {
         const urls = await window.streamHub.ssnUrls();
         if (urls.dock) window.open(urls.dock, "_blank");

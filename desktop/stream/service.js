@@ -14,6 +14,7 @@ const titles = require("./titles");
 const gameSearch = require("./game-search");
 const clips = require("./clips");
 const ssnBridge = require("./ssn-bridge");
+const liveViewers = require("./live-viewers");
 const streamerbotBridge = require("./streamerbot-bridge");
 const { discoverAll, applyDiscovery } = require("./discover-local");
 const { install: installSbActions } = require("./install-sb-actions");
@@ -1051,9 +1052,18 @@ function registerStreamIpc(options = {}) {
     ],
     [
       "stream:ssn-connect",
-      async () => ssnBridge.connect(loadConfig()),
+      async () => {
+        const config = loadConfig();
+        liveViewers.start(config);
+        return ssnBridge.connect(config);
+      },
     ],
     ["stream:ssn-status", async () => ssnBridge.getStatus()],
+    ["stream:live-viewers", async () => liveViewers.getSnapshot()],
+    [
+      "stream:live-viewers-refresh",
+      async () => liveViewers.refresh(loadConfig()),
+    ],
     [
       "stream:ssn-urls",
       async () => {
@@ -1220,6 +1230,12 @@ function registerStreamIpc(options = {}) {
   for (const [channel, handler] of handlers) {
     ipcMain.removeHandler(channel);
     ipcMain.handle(channel, handler);
+  }
+
+  try {
+    liveViewers.start(loadConfig());
+  } catch {
+    /* ignore */
   }
 }
 

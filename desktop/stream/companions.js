@@ -4,6 +4,40 @@ const path = require("path");
 const os = require("os");
 const { notify } = require("./notify");
 
+/** Réapplique le patch chat Instagram Live SSN (broadcast_id / REST / DOM). */
+function applySsnInstagramPatch() {
+  const patchSrc = path.join(__dirname, "patches", "ssn-instagram.js");
+  if (!fs.existsSync(patchSrc)) return false;
+  const destDir = path.join(
+    process.env.LOCALAPPDATA || path.join(os.homedir(), "AppData", "Local"),
+    "Programs",
+    "socialstream",
+    "resources",
+    "app.asar.unpacked",
+    "resources",
+    "social_stream_fallback",
+    "main",
+    "sources",
+  );
+  if (!fs.existsSync(destDir)) return false;
+  const body = fs.readFileSync(patchSrc);
+  let wrote = false;
+  for (const name of ["instagram.js", "instagramlive.js"]) {
+    const dest = path.join(destDir, name);
+    try {
+      const bak = dest + ".bak-pre-animebeat";
+      if (fs.existsSync(dest) && !fs.existsSync(bak)) {
+        fs.copyFileSync(dest, bak);
+      }
+      fs.writeFileSync(dest, body);
+      wrote = true;
+    } catch (_) {
+      /* ignore per-file */
+    }
+  }
+  return wrote;
+}
+
 const DEFAULT_STUNNEL = path.join(
   os.homedir(),
   "Documents",
@@ -136,6 +170,13 @@ function launchOne(id, config, { force = false } = {}) {
   }
 
   try {
+    if (id === "socialstream") {
+      try {
+        applySsnInstagramPatch();
+      } catch (_) {
+        /* best-effort */
+      }
+    }
     const cwd = def.cwd ? def.cwd(exe) : path.dirname(exe);
     // SSN: active Control API locale pour démarrer/relancer Instagram Live depuis le hub
     const args =
