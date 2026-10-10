@@ -653,6 +653,11 @@
               <input id="obsPort" placeholder="4455" />
               <input id="obsPassword" type="password" placeholder="password" />
             </div>
+            <label style="display:flex;gap:8px;align-items:center;margin-top:8px">
+              <input type="checkbox" id="obsPreserveRestream" checked />
+              Préserver destination OBS (Restream) — ne pas basculer vers nginx local
+            </label>
+            <p class="hint">Si décoché: le hub force <code>rtmp://127.0.0.1:1935/live</code> (coupe Restream).</p>
           </div>
           <div>
             <label>Sources texte titre / jeu</label>
@@ -1417,6 +1422,10 @@
         document.getElementById("obsHost").value = config.obs.host || "127.0.0.1";
         document.getElementById("obsPort").value = config.obs.port || 4455;
         document.getElementById("obsPassword").value = config.obs.password || "";
+        const preserve = document.getElementById("obsPreserveRestream");
+        if (preserve) {
+          preserve.checked = (config.obs.streamDestinationMode || "leave") !== "nginx";
+        }
         const map = document.getElementById("sceneMap");
         map.innerHTML = "";
         for (let i = 1; i <= 10; i += 1) {
@@ -1696,6 +1705,9 @@
         next.obs.host = document.getElementById("obsHost").value.trim();
         next.obs.port = Number(document.getElementById("obsPort").value) || 4455;
         next.obs.password = document.getElementById("obsPassword").value;
+        next.obs.streamDestinationMode = document.getElementById("obsPreserveRestream")?.checked
+          ? "leave"
+          : "nginx";
         next.obs.textSources = {
           title: document.getElementById("obsTitleSource").value.trim(),
           game: document.getElementById("obsGameSource").value.trim(),

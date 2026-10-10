@@ -37,13 +37,50 @@ function sleep(ms) {
 }
 
 async function ensureObsToNginx(config, { forceRestart = false } = {}) {
-  // nginx application = "live" ; clé OBS libre (souvent "obs")
-  const server = "rtmp://127.0.0.1:1935/live";
-  const key = config.multistream?.streamKey || "obs";
   await obsBridge.connect(config.obs);
   const st = await obsBridge.getStreamStatus(config.obs);
-  // Après reload nginx (nouvelles push FB/IG), il FAUT republier
-  // sinon nginx garde l'ancienne session sans les nouveaux push.
+  const preserve = obsBridge.shouldPreserveObsDestination(config.obs);
+
+  // Mode Restream / leave: NE JAMAIS stop ni écraser la destination OBS
+  if (preserve) {
+    const svc = await obsBridge.getStreamServiceSettings(config.obs).catch(() => null);
+    if (st?.outputActive) {
+      notify(
+        "OBS",
+        "Stream OBS déjà ON (Restream préservé) — pas de stop / pas de nginx",
+        "info",
+      );
+      return {
+        ok: true,
+        skipped: true,
+        preserved: true,
+        via: "restream-leave",
+        server: svc?.streamServiceSettings?.server || "",
+        alreadyLive: true,
+      };
+    }
+    // Démarre le stream SANS changer Restream
+    try {
+      await obsBridge.startStream(config.obs);
+      await sleep(3000);
+      const live = await obsBridge.getStreamStatus(config.obs);
+      if (!live?.outputActive) {
+        return {
+          ok: false,
+          preserved: true,
+          reason: "OBS StartStream échoué — vérifie Restream / clé OBS",
+        };
+      }
+      notify("OBS", "Start Stream OBS (destination Restream intacte)", "info");
+      return { ok: true, preserved: true, via: "restream-leave", started: true };
+    } catch (err) {
+      return { ok: false, preserved: true, reason: err.message };
+    }
+  }
+
+  // Mode nginx: OBS → 127.0.0.1:1935/live (stack Meta)
+  const server = "rtmp://127.0.0.1:1935/live";
+  const key = config.multistream?.streamKey || "obs";
   if (st?.outputActive) {
     notify(
       "OBS",
@@ -59,7 +96,7 @@ async function ensureObsToNginx(config, { forceRestart = false } = {}) {
     }
     await sleep(2500);
   }
-  await obsBridge.setCustomRtmp(config.obs, server, key);
+  await obsBridge.setCustomRtmp(config.obs, server, key, { force: true });
   await sleep(500);
   await obsBridge.startStream(config.obs);
   await sleep(4000);
@@ -68,7 +105,7 @@ async function ensureObsToNginx(config, { forceRestart = false } = {}) {
     return { ok: false, reason: "OBS n'est pas en stream après StartStream" };
   }
   notify("OBS", `Stream → ${server}/${key}`, "info");
-  return { ok: true, server, key, restarted: true };
+  return { ok: true, server, key, restarted: true, via: "nginx" };
 }
 
 /**
@@ -248,9 +285,11 @@ async function armPushAndGoLive(options = {}) {
     multistream.applyInstagramDestination(config);
   }
 
-  // ——— 3) OBS Start Stream classique seulement si besoin (FB / nginx IG) ———
+  // ——— 3) OBS stream — Restream préservé par défaut (pas de stop / nginx) ———
+  const preserveObs = obsBridge.shouldPreserveObsDestination(config.obs);
   const needMainObsStream =
     startObsStream &&
+    !preserveObs &&
     (want.includes("facebook") ||
       (want.includes("instagram") && !igViaAitum) ||
       (want.includes("instagram") &&
@@ -265,13 +304,15 @@ async function armPushAndGoLive(options = {}) {
     if (!results.obs.ok) {
       return { ok: false, step: "obs", ...results };
     }
+  } else if (preserveObs) {
+    results.obs = { ok: true, skipped: true, via: "restream-leave" };
   } else if (igViaAitum) {
     results.obs = { ok: true, skipped: true, via: "aitum-vertical-only" };
     results.mode = "aitum-vertical";
   }
 
   // Laisse nginx/stunnel digérer le RTMPS
-  await sleep(15000);
+  await sleep(igViaAitum || preserveObs ? 8000 : 15000);
 
   // ——— 4) Go Live dès preview ———
   if (want.includes("instagram") && results.prepared.instagram?.ok) {
@@ -385,9 +426,11 @@ async function continuePushAndGoLive(options = {}) {
     }
   }
 
-  // OBS Start Stream classique seulement si FB / nginx IG (pas quand IG = Aitum seul)
+  // OBS Start Stream classique seulement si FB / nginx IG (jamais si Restream préservé)
+  const preserveObs = obsBridge.shouldPreserveObsDestination(config.obs);
   const needMainObsStream =
     startObsStream &&
+    !preserveObs &&
     (want.includes("facebook") ||
       (want.includes("instagram") && !igViaAitum) ||
       (want.includes("instagram") && igViaAitum && !results.aitumStart?.ok));
@@ -399,6 +442,8 @@ async function continuePushAndGoLive(options = {}) {
     if (!results.obs.ok) {
       return { ok: false, step: "obs", ...results };
     }
+  } else if (preserveObs) {
+    results.obs = { ok: true, skipped: true, via: "restream-leave" };
   } else if (igViaAitum) {
     results.obs = { ok: true, skipped: true, via: "aitum-vertical-only" };
     results.mode = "aitum-vertical";
@@ -406,12 +451,14 @@ async function continuePushAndGoLive(options = {}) {
 
   notify(
     "Go Live",
-    igViaAitum && !needMainObsStream
-      ? "Attente 12s (Aitum Vertical → preview IG)…"
-      : "Attente 12s (flux OBS → preview)…",
+    preserveObs
+      ? "Attente preview (Restream OBS intact + Aitum IG)…"
+      : igViaAitum && !needMainObsStream
+        ? "Attente 12s (Aitum Vertical → preview IG)…"
+        : "Attente 12s (flux OBS → preview)…",
     "info",
   );
-  await sleep(12000);
+  await sleep(preserveObs || igViaAitum ? 8000 : 12000);
 
   if (want.includes("instagram") && config.platforms?.instagram?.streamKey) {
     notify("Instagram", "Suite auto → Lancer un direct…", "info");

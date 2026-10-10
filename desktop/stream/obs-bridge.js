@@ -97,8 +97,52 @@ async function switchSceneForScreenCount(obsConfig, screenCount) {
   return setCurrentScene(obsConfig, sceneName);
 }
 
-async function setCustomRtmp(obsConfig, server, key) {
+/** true = ne jamais écraser Restream / destination OBS actuelle */
+function shouldPreserveObsDestination(obsConfig = {}) {
+  const mode = String(obsConfig.streamDestinationMode || "leave").toLowerCase();
+  if (mode === "nginx" || mode === "force-nginx" || mode === "custom") return false;
+  // défaut: leave / restream / preserve
+  return true;
+}
+
+function looksLikeRestream(settings) {
+  const type = String(settings?.streamServiceType || "").toLowerCase();
+  const server = String(settings?.streamServiceSettings?.server || settings?.server || "").toLowerCase();
+  const key = String(settings?.streamServiceSettings?.key || "").toLowerCase();
+  if (/restream/.test(type)) return true;
+  if (/restream\.io|restream\.live/.test(server)) return true;
+  if (server && !/127\.0\.0\.1|localhost/.test(server) && !/nginx/.test(server)) {
+    // destination externe (Restream, Twitch direct, etc.)
+    return true;
+  }
+  void key;
+  return false;
+}
+
+async function setCustomRtmp(obsConfig, server, key, { force = false } = {}) {
+  if (!force && shouldPreserveObsDestination(obsConfig)) {
+    const current = await getStreamServiceSettings(obsConfig).catch(() => null);
+    notify(
+      "OBS",
+      "Destination OBS préservée (Restream) — pas de bascule vers nginx local",
+      "info",
+    );
+    return {
+      ok: true,
+      skipped: true,
+      preserved: true,
+      reason: "streamDestinationMode=leave (Restream)",
+      current,
+    };
+  }
   const obs = await ensureConnected(obsConfig);
+  // Sauvegarde pour restauration éventuelle
+  let previous = null;
+  try {
+    previous = await obs.call("GetStreamServiceSettings");
+  } catch {
+    /* optional */
+  }
   await obs.call("SetStreamServiceSettings", {
     streamServiceType: "rtmp_custom",
     streamServiceSettings: {
@@ -107,17 +151,30 @@ async function setCustomRtmp(obsConfig, server, key) {
       use_auth: false,
     },
   });
-  return { ok: true };
+  return { ok: true, previous };
 }
 
 async function getStreamServiceSettings(obsConfig) {
   const obs = await ensureConnected(obsConfig);
   try {
     const res = await obs.call("GetStreamServiceSettings");
-    return { ok: true, ...res };
+    return { ok: true, ...res, isRestreamLike: looksLikeRestream(res) };
   } catch (err) {
     return { ok: false, reason: err?.message };
   }
+}
+
+async function restoreStreamService(obsConfig, previous) {
+  if (!previous?.streamServiceType) {
+    return { ok: false, reason: "pas de settings OBS à restaurer" };
+  }
+  const obs = await ensureConnected(obsConfig);
+  await obs.call("SetStreamServiceSettings", {
+    streamServiceType: previous.streamServiceType,
+    streamServiceSettings: previous.streamServiceSettings || {},
+  });
+  notify("OBS", "Destination stream restaurée", "info");
+  return { ok: true };
 }
 
 async function startStream(obsConfig) {
@@ -455,6 +512,9 @@ module.exports = {
   switchSceneForScreenCount,
   setCustomRtmp,
   getStreamServiceSettings,
+  restoreStreamService,
+  shouldPreserveObsDestination,
+  looksLikeRestream,
   startStream,
   stopStream,
   getStreamStatus,

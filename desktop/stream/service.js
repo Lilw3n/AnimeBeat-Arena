@@ -292,8 +292,8 @@ function registerStreamIpc(options = {}) {
         }
         const ingest = multistream.pointObsToIngest(config);
         try {
+          // Respecte Restream: setCustomRtmp no-op si streamDestinationMode=leave
           await obsBridge.setCustomRtmp(config.obs, ingest.server, ingest.key);
-          notify("OBS", "Destination RTMP pointée vers le relais local", "info");
         } catch (err) {
           notify("OBS", err.message || "Impossible de régler le RTMP OBS", "warn");
         }
@@ -407,9 +407,11 @@ function registerStreamIpc(options = {}) {
         };
         saveConfig(next);
 
-        // 2) Brancher la clé dans le pipeline (sans re-ouvrir Live Producer)
+        // 2) Multistream local optionnel — NE PAS écraser Restream (IG = Aitum)
         let ms = multistream.getStatus();
-        if (!ms.running) {
+        const igViaAitum = goLivePipeline.usesAitumForIg(next);
+        const preserveObs = obsBridge.shouldPreserveObsDestination(next.obs);
+        if (!ms.running && !igViaAitum && !preserveObs) {
           const started = await multistream.start(next, {
             title,
             game: payload?.game || "",
@@ -423,32 +425,37 @@ function registerStreamIpc(options = {}) {
           try {
             await obsBridge.connect(next.obs);
             await obsBridge.setCustomRtmp(next.obs, ingest.server, ingest.key);
-            notify("OBS", "RTMP pointé vers le relais local (pour Instagram)", "info");
           } catch (err) {
             notify("OBS", err.message || "Impossible de régler le RTMP OBS", "warn");
           }
           ms = started;
+        } else if (preserveObs || igViaAitum) {
+          notify(
+            "OBS",
+            igViaAitum
+              ? "IG via Aitum — Restream / stream OBS principal intact"
+              : "Destination OBS préservée (Restream)",
+            "info",
+          );
         }
 
         const wired = multistream.applyInstagramDestination(next);
-        if (wired.needsMultistream) {
+        if (wired.needsMultistream && !igViaAitum && !preserveObs) {
           notify("Instagram", "Démarre le multistream puis republie OBS", "warn");
         }
 
-        // 3) Suite auto: Aitum Vertical (IG) puis clic Lancer un direct — pas OBS Stream classique
+        // 3) Suite auto Go Live IG — sans stop/repoint Restream
         let continued = null;
         if (payload?.continueGoLive !== false) {
-          const igViaAitum = goLivePipeline.usesAitumForIg(next);
           continued = await goLivePipeline.continuePushAndGoLive({
             force: true,
             platforms: ["instagram"],
-            // IG via Aitum = ne pas lancer Start Stream OBS paysage
             startObsStream:
               payload?.startObsStream === true
                 ? true
                 : payload?.startObsStream === false
                   ? false
-                  : !igViaAitum,
+                  : !igViaAitum && !preserveObs,
             timeoutMs: payload?.timeoutMs || 300000,
           });
         } else if (wired.pending) {
@@ -459,14 +466,24 @@ function registerStreamIpc(options = {}) {
           );
         }
 
-        // 4) Chat Instagram → Social Stream Ninja (relance source Live)
+        // 4) Chat IG SSN en arrière-plan (ne bloque / ne plante pas le Go Live)
         let ssnIg = null;
         try {
-          ssnIg = await ssnBridge.ensureInstagramChat(loadConfig(), {
-            liveUrl: next.platforms?.instagram?.liveUrl || prepared.liveUrl,
-            username: next.platforms?.instagram?.username,
-            forceRestart: true,
-          });
+          ssnIg = await Promise.race([
+            ssnBridge.ensureInstagramChat(loadConfig(), {
+              liveUrl: next.platforms?.instagram?.liveUrl || prepared.liveUrl,
+              username: next.platforms?.instagram?.username,
+              forceRestart: true,
+              timeoutMs: 12000,
+              relaunchIfNoApi: false,
+            }),
+            new Promise((resolve) =>
+              setTimeout(
+                () => resolve({ ok: false, skipped: true, reason: "SSN timeout (non bloquant)" }),
+                15000,
+              ),
+            ),
+          ]);
         } catch (err) {
           ssnIg = { ok: false, reason: err.message };
         }
