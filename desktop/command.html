@@ -419,13 +419,14 @@
           <button type="button" data-apply-one="instagram">IG seul</button>
           <button type="button" class="primary" id="btnLiveTitles">Mettre à jour titres en direct (FB+IG)</button>
           <button type="button" id="btnVerifyLive">Vérifier canaux live</button>
+          <button type="button" id="btnVerifyFixPages">Vérifier jeu + corriger via pages</button>
           <button type="button" class="primary" id="btnProbeLive">Tester maintenant (probe)</button>
         </div>
         <p class="hint" id="selectedGame">Aucun jeu sélectionné — la recherche choisira le meilleur match, sinon notification.</p>
         <p class="hint" id="liveVerifyHint">
-          <b>Titre / jeu / infos</b> : marche <b>avant ou pendant</b> le live.
-          Twitch+Kick → Streamer.bot (:4457). FB → Graph si token, sinon Producer (ouvert auto).
-          IG → Producer ouvert auto. Liens sticky aussi poussés à l’Appliquer si renseignés.
+          <b>Titre / jeu</b> : Streamer.bot d’abord, puis <b>vérif sur les liens</b> Twitch/Kick.
+          Si le jeu n’est pas le bon → ouverture dashboards + lives pour corriger.
+          FB/IG → Live Producer (auto).
         </p>
       </section>
 
@@ -2118,10 +2119,15 @@
         if (res?.liveApplied?.length) bits.push(`live ${res.liveApplied.join(",")}`);
         if (res?.savedOnly?.length) bits.push(`sauvé ${res.savedOnly.join(",")}`);
         if (res?.failedPlatforms?.length) bits.push(`échec ${res.failedPlatforms.join(",")}`);
+        if (res?.pageMeta?.ok) bits.push("jeux vérifiés OK");
+        else if (res?.pageMeta?.fixed) bits.push("jeux corrigés via pages");
+        else if (res?.pageMeta?.verify?.mismatches?.length) {
+          bits.push(`jeux KO: ${res.pageMeta.verify.mismatches.join(",")}`);
+        }
         toast(
           "Titres",
           bits.join(" · ") || (res?.ok ? "OK" : res?.reason || "échec"),
-          res?.failedPlatforms?.length ? "warn" : "info",
+          res?.failedPlatforms?.length || res?.pageMeta?.ok === false ? "warn" : "info",
         );
         const hint = document.getElementById("liveVerifyHint");
         if (hint && bits.length) hint.textContent = bits.join(" · ");
@@ -2135,12 +2141,16 @@
         await window.streamHub.saveConfig(config);
         const res = await window.streamHub.verifyLiveUpdates({
           probe: Boolean(probe),
+          fixPages: Boolean(probe),
           title: document.getElementById("title").value.trim(),
           gameQuery: document.getElementById("gameQuery").value.trim(),
         });
         const lines = Object.entries(res?.channels || {}).map(([k, v]) => {
           return `${k}: ${v.ok ? "OK" : "—"} (${v.detail})`;
         });
+        if (res?.pageCheck?.mismatches?.length) {
+          lines.push(`jeux KO: ${res.pageCheck.mismatches.join(",")}`);
+        }
         if (res?.tips?.length) lines.push(...res.tips.map((t) => `→ ${t}`));
         if (hint) hint.textContent = lines.join(" · ");
         toast(
@@ -2148,12 +2158,15 @@
           [
             res?.summary?.canLiveObs ? "OBS" : null,
             res?.summary?.canLiveSb ? "SB" : null,
+            res?.pageCheck?.ok ? "jeux OK" : res?.pageCheck ? "jeux à corriger" : null,
             res?.summary?.canLiveFacebook ? "FB" : null,
             res?.summary?.canLiveInstagram ? "IG" : null,
           ]
             .filter(Boolean)
             .join(" · ") || "état lu",
-          res?.summary?.canLiveObs || res?.summary?.canLiveSb ? "info" : "warn",
+          res?.pageCheck?.ok !== false && (res?.summary?.canLiveObs || res?.summary?.canLiveSb)
+            ? "info"
+            : "warn",
         );
         return res;
       }
@@ -2240,6 +2253,35 @@
       });
       document.getElementById("btnVerifyLive")?.addEventListener("click", () => runLiveVerify(false));
       document.getElementById("btnProbeLive")?.addEventListener("click", () => runLiveVerify(true));
+      document.getElementById("btnVerifyFixPages")?.addEventListener("click", async () => {
+        const hint = document.getElementById("liveVerifyHint");
+        if (hint) hint.textContent = "Vérif jeu + ouverture pages…";
+        config = collectConfigFromUi();
+        await window.streamHub.saveConfig(config);
+        const title = document.getElementById("title").value.trim();
+        const game =
+          selectedGame?.name || document.getElementById("gameQuery").value.trim();
+        try {
+          const check = await window.streamHub.verifyLiveUpdates({
+            probe: false,
+            fixPages: true,
+            title,
+            gameQuery: game,
+          });
+          const fix = check?.pageCheck?.fix;
+          const mism = check?.pageCheck?.mismatches || [];
+          const msg = check?.pageCheck?.ok
+            ? `Jeux OK · Twitch « ${check.pageCheck.platforms?.twitch?.game || "?"} » · Kick « ${check.pageCheck.platforms?.kick?.game || "?"} »`
+            : fix
+              ? `Corrigé via pages · restant: ${(fix.verifyAfter?.mismatches || mism).join(",") || "—"}`
+              : `KO: ${mism.join(",") || check?.pageCheck?.reason || "lire pages"}`;
+          if (hint) hint.textContent = msg;
+          toast("Vérif jeu", msg, check?.pageCheck?.ok ? "info" : "warn");
+        } catch (err) {
+          if (hint) hint.textContent = err?.message || "erreur";
+          toast("Vérif jeu", err?.message || "erreur", "warn");
+        }
+      });
       document.getElementById("btnIgSaveLink")?.addEventListener("click", async () => {
         config = collectConfigFromUi();
         const url = document.getElementById("igStickyUrl")?.value?.trim() || "";

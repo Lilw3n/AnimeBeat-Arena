@@ -67,6 +67,7 @@ contextBridge.exposeInMainWorld("streamHub", {
   continueGoLive: (payload) => ipcRenderer.invoke("stream:continue-go-live", payload),
   pushLiveMeta: (payload) => ipcRenderer.invoke("stream:push-live-meta", payload),
   verifyLiveUpdates: (payload) => ipcRenderer.invoke("stream:verify-live-updates", payload),
+  verifyFixPages: (payload) => ipcRenderer.invoke("stream:verify-fix-pages", payload),
   refreshLiveUrls: (payload) => ipcRenderer.invoke("stream:refresh-live-urls", payload),
   onEvent: (cb) => {
     const listener = (_e, payload) => cb(payload);

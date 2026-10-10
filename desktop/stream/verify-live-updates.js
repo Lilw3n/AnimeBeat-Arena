@@ -7,6 +7,7 @@ const streamerbot = require("./streamerbot-bridge");
 const facebook = require("./platforms/facebook");
 const instagram = require("./platforms/instagram");
 const titles = require("./titles");
+const pageMeta = require("./page-meta");
 const { notify } = require("./notify");
 
 function statusLine(ok, detail) {
@@ -123,6 +124,44 @@ async function verifyLiveUpdates(options = {}) {
     probeResult.linkResults = linkResults;
   }
 
+  // Lecture publique Twitch/Kick (liens) — le jeu affiché est-il le bon ?
+  let pageCheck = null;
+  const expectGame =
+    String(options.gameQuery || "").trim() ||
+    config.platforms?.facebook?.lastGame ||
+    "";
+  const expectTitle =
+    String(options.title || "").trim() ||
+    config.platforms?.facebook?.lastTitle ||
+    "";
+  try {
+    pageCheck = await pageMeta.verifyPlatformMeta(config, {
+      title: expectTitle,
+      game: expectGame,
+    });
+    channels.pageTwitch = statusLine(
+      pageCheck.platforms?.twitch?.match !== false && pageCheck.platforms?.twitch?.ok,
+      pageCheck.platforms?.twitch?.ok
+        ? `jeu=« ${pageCheck.platforms.twitch.game || "?"} »${pageCheck.platforms.twitch.gameOk === false ? " ≠ attendu" : " OK"}`
+        : pageCheck.platforms?.twitch?.reason || "Twitch non lu",
+    );
+    channels.pageKick = statusLine(
+      pageCheck.platforms?.kick?.match !== false && pageCheck.platforms?.kick?.ok,
+      pageCheck.platforms?.kick?.ok
+        ? `jeu=« ${pageCheck.platforms.kick.game || "?"} »${pageCheck.platforms.kick.gameOk === false ? " ≠ attendu" : " OK"}`
+        : pageCheck.platforms?.kick?.reason || "Kick non lu",
+    );
+    if (options.fixPages && !pageCheck.ok) {
+      pageCheck.fix = await pageMeta.fixMetaViaPages(config, {
+        title: expectTitle,
+        game: expectGame,
+        platforms: pageCheck.mismatches,
+      });
+    }
+  } catch (err) {
+    pageCheck = { ok: false, reason: err.message };
+  }
+
   const readyCount = Object.values(channels).filter((c) => c.ok).length;
   notify(
     "Vérif live",
@@ -137,10 +176,14 @@ async function verifyLiveUpdates(options = {}) {
     channels,
     summary,
     probe: probeResult,
+    pageCheck,
     tips: [
       !summary.canLiveObs ? "Connecte OBS (WebSocket 4455) pour titres OBS." : null,
       !summary.canLiveSb
         ? "Connecte Streamer.bot (:4457) pour Twitch/Kick via actions."
+        : null,
+      pageCheck && !pageCheck.ok
+        ? `Jeu incorrect sur: ${(pageCheck.mismatches || []).join(", ")} — Appliquer relance la correction via les pages.`
         : null,
       !fbProd.open && !hasFbGraph
         ? "FB: sans token Graph, « Appliquer » ouvrira le Live Producer automatiquement."

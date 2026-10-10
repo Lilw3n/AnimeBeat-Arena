@@ -4,6 +4,7 @@ const facebook = require("./platforms/facebook");
 const instagram = require("./platforms/instagram");
 const obsBridge = require("./obs-bridge");
 const streamerbot = require("./streamerbot-bridge");
+const pageMeta = require("./page-meta");
 const { resolveGame } = require("./game-search");
 const { notify } = require("./notify");
 const { loadConfig, saveConfig } = require("./config");
@@ -129,6 +130,32 @@ async function applyEverywhere(config, { title, gameQuery, gameOverride, screenC
       platform: "streamerbot",
       covers: wantsTwitchKick ? ["twitch", "kick"] : [],
     });
+
+    // Vérifie le jeu sur les pages (liens). Si SB rate → ouvre dashboards / lives et corrige.
+    if (gameName || cleanTitle) {
+      try {
+        results.pageMeta = await pageMeta.verifyAndFixAfterStreamerBot(config, {
+          title: platformTitles.twitch || cleanTitle,
+          game: gameName,
+          streamerbotResult: sb,
+        });
+        results.platforms.push({
+          ok: Boolean(results.pageMeta?.ok),
+          live: Boolean(results.pageMeta?.ok),
+          platform: "page-verify",
+          mismatches: results.pageMeta?.verify?.mismatches || [],
+          fixed: Boolean(results.pageMeta?.fixed),
+          detail: results.pageMeta?.verifyAfter || results.pageMeta?.verify || null,
+        });
+      } catch (err) {
+        results.pageMeta = { ok: false, reason: err.message };
+        results.platforms.push({
+          ok: false,
+          platform: "page-verify",
+          reason: err.message,
+        });
+      }
+    }
   }
 
   if (wants(targets, "twitch")) {

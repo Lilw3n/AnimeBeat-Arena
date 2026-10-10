@@ -33,7 +33,7 @@
   "platforms": {
     "twitch": {
       "enabled": false,
-      "login": "",
+      "login": "lilwen54",
       "clientId": "",
       "clientSecret": "",
       "accessToken": "",
@@ -43,6 +43,7 @@
     },
     "kick": {
       "enabled": false,
+      "login": "lilwen54",
       "streamKey": "",
       "rtmpUrl": "rtmps://fa723fc1b171.global-contribute.live-video.net/app",
       "categoryName": ""

@@ -877,10 +877,26 @@ function registerStreamIpc(options = {}) {
       async (_e, payload) =>
         verifyLiveUpdates({
           probe: Boolean(payload?.probe),
+          fixPages: Boolean(payload?.fixPages),
           title: payload?.title,
           gameQuery: payload?.gameQuery,
           platforms: payload?.platforms,
         }),
+    ],
+    [
+      "stream:verify-fix-pages",
+      async (_e, payload) => {
+        const pageMeta = require("./page-meta");
+        const config = loadConfig();
+        const title = String(payload?.title || "").trim();
+        const game = String(payload?.game || payload?.gameQuery || "").trim();
+        return pageMeta.fixMetaViaPages(config, {
+          title,
+          game,
+          platforms: payload?.platforms,
+          forceOpen: payload?.forceOpen !== false,
+        });
+      },
     ],
     [
       "stream:refresh-live-urls",
