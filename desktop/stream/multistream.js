@@ -453,6 +453,81 @@ function pointObsToIngest(config) {
   };
 }
 
+/**
+ * Active/coupe un relais ffmpeg selon platforms.*.enabled + clé.
+ * Sans publication OBS → pending.
+ */
+function setRelayEnabled(config, platformId) {
+  const id = String(platformId || "").toLowerCase();
+  if (!id) return { ok: false, reason: "platform manquant" };
+  const cfg = activeConfig || config;
+  if (cfg?.platforms?.[id]) {
+    // garder activeConfig aligné
+    if (activeConfig?.platforms) {
+      activeConfig.platforms[id] = {
+        ...(activeConfig.platforms[id] || {}),
+        ...cfg.platforms[id],
+      };
+    }
+  }
+  const enabled = cfg?.platforms?.[id]?.enabled !== false;
+  const hasKey = Boolean(String(cfg?.platforms?.[id]?.streamKey || "").trim());
+
+  if (!enabled || !hasKey) {
+    const stopped = stopRelay(id);
+    publishStatus({ activeRelays: [...relays.keys()] });
+    return { ok: true, stopped, platform: id, enabled: false };
+  }
+
+  if (!nms || !lastInputUrl) {
+    return {
+      ok: true,
+      pending: true,
+      platform: id,
+      message: "Relais démarrera dès qu'OBS publie vers le multistream",
+    };
+  }
+
+  const dests = collectDestinations(cfg, facebookSession);
+  const dest = dests.find((d) => d.platform === id);
+  if (!dest) {
+    stopRelay(id);
+    return { ok: false, reason: "Destination absente (OFF ou clé)", platform: id };
+  }
+  const ffmpegPath = resolveFfmpeg(cfg);
+  startRelay(ffmpegPath, lastInputUrl, dest);
+  publishStatus({ activeRelays: [...relays.keys()] });
+  return { ok: true, started: true, platform: id };
+}
+
+function syncRelaysFromConfig(config) {
+  const cfg = activeConfig || config;
+  if (activeConfig && config?.platforms) {
+    activeConfig.platforms = { ...activeConfig.platforms, ...config.platforms };
+  }
+  const wanted = new Set(
+    collectDestinations(cfg, facebookSession).map((d) => d.platform),
+  );
+  const results = [];
+  for (const id of [...relays.keys()]) {
+    if (!wanted.has(id)) {
+      stopRelay(id);
+      results.push({ id, stopped: true });
+    }
+  }
+  if (nms && lastInputUrl) {
+    const ffmpegPath = resolveFfmpeg(cfg);
+    for (const dest of collectDestinations(cfg, facebookSession)) {
+      if (!relays.has(dest.platform)) {
+        startRelay(ffmpegPath, lastInputUrl, dest);
+        results.push({ id: dest.platform, started: true });
+      }
+    }
+  }
+  publishStatus({ activeRelays: [...relays.keys()] });
+  return { ok: true, results, activeRelays: [...relays.keys()] };
+}
+
 module.exports = {
   start,
   stop,
@@ -463,4 +538,6 @@ module.exports = {
   prepareInstagram,
   applyInstagramDestination,
   stopRelay,
+  setRelayEnabled,
+  syncRelaysFromConfig,
 };

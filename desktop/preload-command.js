@@ -39,6 +39,11 @@ contextBridge.exposeInMainWorld("streamHub", {
   liveViewersRefresh: () => ipcRenderer.invoke("stream:live-viewers-refresh"),
   routesStatus: () => ipcRenderer.invoke("stream:routes-status"),
   routesApply: (payload) => ipcRenderer.invoke("stream:routes-apply", payload),
+  destinationsStatus: () => ipcRenderer.invoke("stream:destinations-status"),
+  destinationToggle: (payload) =>
+    ipcRenderer.invoke("stream:destination-toggle", payload),
+  destinationsAll: (payload) =>
+    ipcRenderer.invoke("stream:destinations-all", payload),
   streamerbotConnect: () => ipcRenderer.invoke("stream:streamerbot-connect"),
   streamerbotStatus: () => ipcRenderer.invoke("stream:streamerbot-status"),
   streamerbotActions: () => ipcRenderer.invoke("stream:streamerbot-actions"),

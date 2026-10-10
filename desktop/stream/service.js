@@ -27,6 +27,7 @@ const autoUpdate = require("./auto-update");
 const { buildLiveLinks } = require("./live-links");
 const { verifyLiveUpdates } = require("./verify-live-updates");
 const streamRoutes = require("./stream-routes");
+const streamDestinations = require("./stream-destinations");
 const { notify } = require("./notify");
 
 /**
@@ -225,6 +226,24 @@ function registerStreamIpc(options = {}) {
           routes: applied.routes,
           config: applied.config,
         };
+      },
+    ],
+    [
+      "stream:destinations-status",
+      async () => streamDestinations.getStatus(),
+    ],
+    [
+      "stream:destination-toggle",
+      async (_e, payload = {}) => {
+        const id = String(payload.platform || payload.id || "").toLowerCase();
+        const enabled = Boolean(payload.enabled);
+        return streamDestinations.setEnabled(id, enabled);
+      },
+    ],
+    [
+      "stream:destinations-all",
+      async (_e, payload = {}) => {
+        return streamDestinations.setAllWithKeys(Boolean(payload.enabled));
       },
     ],
     [

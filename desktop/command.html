@@ -354,6 +354,23 @@
         flex-wrap: wrap;
         margin: 0 0 8px;
       }
+      .dest-toggle {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        padding: 8px 10px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: #0b1230;
+        font-size: 12px;
+        min-width: 140px;
+      }
+      .dest-toggle.on { border-color: rgba(52, 211, 153, 0.55); }
+      .dest-toggle.off { border-color: rgba(248, 113, 113, 0.4); opacity: 0.9; }
+      .dest-toggle.locked { opacity: 0.55; }
+      .dest-toggle .dest-name { font-weight: 600; }
+      .dest-toggle .dest-meta { color: var(--muted); font-size: 11px; }
+      .dest-toggle button { width: 100%; margin-top: 4px; }
       .full { grid-column: 1 / -1; }
     </style>
   </head>
@@ -435,6 +452,20 @@
         </div>
         <p class="hint" id="routesDiagram">Schéma: —</p>
         <p class="hint" id="routesHint">—</p>
+
+        <h3 style="margin:14px 0 6px;font-size:1rem">Destinations (activer / couper)</h3>
+        <p class="hint" style="margin-top:0">
+          Uniquement les lives pour lesquels le hub a une <b>clé RTMP</b>.
+          Sans clé (ex. Twitch/Kick via Restream) → bouton grisé.
+          FB/IG : coupe aussi le push nginx → stunnel sans arrêter OBS.
+        </p>
+        <div class="actions" style="margin-bottom:8px">
+          <button type="button" class="primary" id="btnDestAllOn">Tout activer (avec clés)</button>
+          <button type="button" class="danger" id="btnDestAllOff">Tout couper (avec clés)</button>
+          <button type="button" id="btnDestRefresh">Rafraîchir</button>
+        </div>
+        <div id="destToggles" class="row3" style="gap:8px"></div>
+        <p class="hint" id="destTogglesHint">—</p>
       </section>
 
       <section class="full" id="sec-live-viewers">
@@ -2181,6 +2212,83 @@
         } catch (err) {
           if (hint) hint.textContent = err.message || "erreur flux";
         }
+        await refreshDestToggles();
+      }
+
+      function renderDestToggles(destinations) {
+        const root = document.getElementById("destToggles");
+        const hint = document.getElementById("destTogglesHint");
+        if (!root) return;
+        root.innerHTML = "";
+        const list = destinations || [];
+        const withKeys = list.filter((d) => d.canToggle).length;
+        list.forEach((d) => {
+          const card = document.createElement("div");
+          card.className = `dest-toggle ${d.locked ? "locked" : d.enabled ? "on" : "off"}`;
+          const status = d.locked
+            ? d.lockReason || "Verrouillé"
+            : d.enabled
+              ? d.activeRelay
+                ? "ON · relais actif"
+                : "ON"
+              : "OFF";
+          card.innerHTML = `
+            <span class="dest-name"></span>
+            <span class="dest-meta"></span>
+            <button type="button"></button>
+          `;
+          card.querySelector(".dest-name").textContent = d.label;
+          card.querySelector(".dest-meta").textContent = d.hasKey
+            ? `${status} · ${d.keyHint || "clé OK"}`
+            : status;
+          const btn = card.querySelector("button");
+          if (d.locked || !d.canToggle) {
+            btn.disabled = true;
+            btn.textContent = "Pas de clé";
+          } else {
+            btn.textContent = d.enabled ? "Désactiver" : "Activer";
+            if (d.enabled) btn.classList.add("danger");
+            else btn.classList.add("primary");
+            btn.onclick = async () => {
+              btn.disabled = true;
+              try {
+                const res = await window.streamHub.destinationToggle({
+                  platform: d.id,
+                  enabled: !d.enabled,
+                });
+                if (res?.config) config = res.config;
+                renderDestToggles(res?.destinations);
+                renderPlatforms();
+                fillObsFields();
+                toast(
+                  "Flux",
+                  res?.ok
+                    ? `${d.label}: ${res.enabled ? "activé" : "coupé"}`
+                    : res?.reason || "échec",
+                  res?.ok ? "info" : "warn",
+                );
+              } catch (err) {
+                toast("Flux", err.message || "erreur", "warn");
+              } finally {
+                btn.disabled = false;
+              }
+            };
+          }
+          root.appendChild(card);
+        });
+        if (hint) {
+          hint.textContent = `${withKeys} destination(s) avec clé · ${list.length - withKeys} sans clé / externes`;
+        }
+      }
+
+      async function refreshDestToggles() {
+        if (!window.streamHub?.destinationsStatus) return;
+        try {
+          const st = await window.streamHub.destinationsStatus();
+          renderDestToggles(st?.destinations || []);
+        } catch {
+          /* ignore */
+        }
       }
 
       function renderLiveViewers(snap) {
@@ -2516,6 +2624,42 @@
         document.getElementById("btnRoutesRefresh")?.addEventListener("click", () =>
           refreshRoutesStatus(),
         );
+        document.getElementById("btnDestRefresh")?.addEventListener("click", () =>
+          refreshDestToggles(),
+        );
+        document.getElementById("btnDestAllOn")?.addEventListener("click", async () => {
+          const res = await window.streamHub.destinationsAll({ enabled: true });
+          if (res?.config) config = res.config;
+          renderDestToggles(res?.destinations);
+          renderPlatforms();
+          fillObsFields();
+          toast(
+            "Flux",
+            res?.changed?.length
+              ? `Activé: ${res.changed.join(", ")}`
+              : "Rien à activer (pas de clés)",
+            "info",
+          );
+        });
+        document.getElementById("btnDestAllOff")?.addEventListener("click", async () => {
+          const res = await window.streamHub.destinationsAll({ enabled: false });
+          if (res?.config) config = res.config;
+          renderDestToggles(res?.destinations);
+          renderPlatforms();
+          fillObsFields();
+          toast(
+            "Flux",
+            res?.changed?.length
+              ? `Coupé: ${res.changed.join(", ")}`
+              : "Rien à couper (pas de clés)",
+            "info",
+          );
+        });
+        window.streamHub.onEvent?.((ev) => {
+          if (ev?.type === "stream-destinations") {
+            renderDestToggles(ev.destinations);
+          }
+        });
         document.getElementById("routeHorizontal")?.addEventListener("change", () => {
           const preserve = document.getElementById("obsPreserveRestream");
           if (preserve) {
@@ -2607,6 +2751,9 @@
           }
           if (ev.type === "live-viewers") {
             renderLiveViewers(ev);
+          }
+          if (ev.type === "stream-destinations") {
+            renderDestToggles(ev.destinations);
           }
           if (ev.type === "ssn-chat" && ev.chat) {
             appendChatRow(ev.chat);
