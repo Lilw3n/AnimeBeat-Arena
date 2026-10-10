@@ -243,10 +243,15 @@ async function readKickPublic(login) {
   }
 }
 
-async function verifyPlatformMeta(config, { title, game } = {}) {
+async function verifyPlatformMeta(config, { title, game, platforms } = {}) {
   const handles = resolveHandles(config);
   const wantTitle = String(title || "").trim();
   const wantGame = String(game || "").trim();
+  const scope = Array.isArray(platforms) && platforms.length
+    ? new Set(platforms.map((p) => String(p).toLowerCase()))
+    : null;
+  const checkTwitch = !scope || scope.has("twitch");
+  const checkKick = !scope || scope.has("kick");
   const out = {
     ok: true,
     wantTitle,
@@ -254,10 +259,11 @@ async function verifyPlatformMeta(config, { title, game } = {}) {
     handles,
     platforms: {},
     mismatches: [],
+    scopedTo: scope ? [...scope] : null,
   };
 
   // Twitch
-  if (handles.twitch) {
+  if (checkTwitch && handles.twitch) {
     let tw =
       (await readTwitchHelix(config.platforms?.twitch || {}, handles.twitch)) ||
       (await readTwitchPublic(handles.twitch));
@@ -277,7 +283,7 @@ async function verifyPlatformMeta(config, { title, game } = {}) {
   }
 
   // Kick
-  if (handles.kick) {
+  if (checkKick && handles.kick) {
     const ki = await readKickPublic(handles.kick);
     if (ki?.ok) {
       const g = gamesMatch(wantGame, ki.game);
@@ -543,7 +549,11 @@ async function fixMetaViaPages(config, { title, game, platforms, forceOpen = tru
   }
 
   await sleep(2500);
-  results.verifyAfter = await verifyPlatformMeta(config, { title: wantTitle, game: wantGame });
+  results.verifyAfter = await verifyPlatformMeta(config, {
+    title: wantTitle,
+    game: wantGame,
+    platforms: want,
+  });
   results.ok = Boolean(results.verifyAfter?.ok);
   const bad = results.verifyAfter?.mismatches || [];
   if (bad.length) {
@@ -553,7 +563,8 @@ async function fixMetaViaPages(config, { title, game, platforms, forceOpen = tru
       "warn",
     );
   } else {
-    notify("Vérif jeu", `OK · jeu « ${wantGame || "—"} » confirmé sur Twitch/Kick`, "info");
+    const label = want.filter((p) => p === "twitch" || p === "kick").join("/") || want.join("/");
+    notify("Vérif jeu", `OK · jeu « ${wantGame || "—"} » confirmé (${label || "pages"})`, "info");
   }
 
   try {
@@ -568,38 +579,68 @@ async function fixMetaViaPages(config, { title, game, platforms, forceOpen = tru
 
 /**
  * Après Streamer.bot: vérifie le jeu ; si KO → ouvre les pages + corrige.
+ * `platforms` limite vérif + ouverture (ex. ["twitch"] pour « Twitch seul »).
  */
-async function verifyAndFixAfterStreamerBot(config, { title, game, streamerbotResult } = {}) {
+async function verifyAndFixAfterStreamerBot(
+  config,
+  { title, game, streamerbotResult, platforms } = {},
+) {
   const wantGame = String(game || "").trim();
   const wantTitle = String(title || "").trim();
   if (!wantGame && !wantTitle) {
     return { ok: true, skipped: true, reason: "rien à vérifier" };
   }
 
+  const scope =
+    Array.isArray(platforms) && platforms.length
+      ? platforms.map((p) => String(p).toLowerCase())
+      : ["twitch", "kick"];
+  // SB ne gère que Twitch/Kick — ne jamais forcer FB/IG ici
+  const pageScope = scope.filter((p) => p === "twitch" || p === "kick");
+  if (!pageScope.length) {
+    return { ok: true, skipped: true, reason: "aucune plateforme Twitch/Kick à vérifier" };
+  }
+
   await sleep(2000); // laisse SB propager
-  let verify = await verifyPlatformMeta(config, { title: wantTitle, game: wantGame });
+  let verify = await verifyPlatformMeta(config, {
+    title: wantTitle,
+    game: wantGame,
+    platforms: pageScope,
+  });
   const sbFailed = streamerbotResult && streamerbotResult.ok === false && !streamerbotResult.skipped;
   const needFix = sbFailed || !verify.ok;
 
   if (!needFix) {
-    notify("Vérif jeu", `Streamer.bot OK · pages confirmées (${wantGame || wantTitle})`, "info");
-    return { ok: true, verify, fixed: false };
+    notify(
+      "Vérif jeu",
+      `Streamer.bot OK · ${pageScope.join("+")} confirmé (${wantGame || wantTitle})`,
+      "info",
+    );
+    return { ok: true, verify, fixed: false, platforms: pageScope };
+  }
+
+  // Si SB a échoué : ouvrir uniquement les plateformes demandées.
+  // Si vérif KO : ouvrir uniquement les mismatches (sous-ensemble du scope).
+  const toFix = sbFailed
+    ? pageScope
+    : (verify.mismatches || []).filter((p) => pageScope.includes(p));
+
+  if (!toFix.length) {
+    return { ok: true, verify, fixed: false, platforms: pageScope };
   }
 
   notify(
     "Vérif jeu",
     sbFailed
-      ? "Streamer.bot a échoué — correction via les pages (liens)…"
-      : `Jeu incorrect sur: ${(verify.mismatches || []).join(", ")} — correction via pages…`,
+      ? `Streamer.bot a échoué — correction via pages (${toFix.join(", ")})…`
+      : `Jeu incorrect sur: ${toFix.join(", ")} — correction via pages…`,
     "warn",
   );
 
   const fix = await fixMetaViaPages(config, {
     title: wantTitle,
     game: wantGame,
-    platforms: verify.mismatches?.length
-      ? [...verify.mismatches, "facebook", "instagram"]
-      : ["twitch", "kick", "facebook", "instagram"],
+    platforms: toFix,
   });
 
   return {
@@ -607,6 +648,7 @@ async function verifyAndFixAfterStreamerBot(config, { title, game, streamerbotRe
     verify,
     fix,
     fixed: true,
+    platforms: pageScope,
   };
 }
 

@@ -117,6 +117,15 @@ async function applyEverywhere(config, { title, gameQuery, gameOverride, screenC
     /* optional */
   }
 
+  // Plateformes à vérifier / ouvrir après SB (jamais FB/IG ici)
+  const pageVerifyPlatforms = [];
+  if (wants(targets, "twitch")) pageVerifyPlatforms.push("twitch");
+  if (wants(targets, "kick")) pageVerifyPlatforms.push("kick");
+  // « SB seul » : SB touche Twitch+Kick → vérifier les deux, pas Meta
+  if (!pageVerifyPlatforms.length && wants(targets, "streamerbot")) {
+    pageVerifyPlatforms.push("twitch", "kick");
+  }
+
   // 1) Streamer.bot en premier pour Twitch + Kick (lives en cours)
   if (runStreamerBot) {
     const sb = await streamerbot.applyTitleAndGame(config, {
@@ -128,16 +137,17 @@ async function applyEverywhere(config, { title, gameQuery, gameOverride, screenC
     results.platforms.push({
       ...sb,
       platform: "streamerbot",
-      covers: wantsTwitchKick ? ["twitch", "kick"] : [],
+      covers: pageVerifyPlatforms.length ? [...pageVerifyPlatforms] : wantsTwitchKick ? ["twitch", "kick"] : [],
     });
 
-    // Vérifie le jeu sur les pages (liens). Si SB rate → ouvre dashboards / lives et corrige.
-    if (gameName || cleanTitle) {
+    // Vérifie uniquement les plateformes ciblées. Si SB rate → ouvre ces pages seules.
+    if ((gameName || cleanTitle) && pageVerifyPlatforms.length) {
       try {
         results.pageMeta = await pageMeta.verifyAndFixAfterStreamerBot(config, {
           title: platformTitles.twitch || cleanTitle,
           game: gameName,
           streamerbotResult: sb,
+          platforms: pageVerifyPlatforms,
         });
         results.platforms.push({
           ok: Boolean(results.pageMeta?.ok),
