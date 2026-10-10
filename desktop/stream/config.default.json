@@ -218,6 +218,6 @@
   "streamRoutes": {
     "horizontal": "restream",
     "vertical": "aitum",
-    "note": "UI Flux: restream|nginx (H) + aitum|nginx (V). Source de vérité = obs.streamDestinationMode (leave/nginx) + aitumVertical.igVia. Défauts = Restream H + Aitum V (ne pas casser)."
+    "note": "UI Flux: restream|nginx (H) + aitum|nginx (V). stunnel = FB+IG Meta uniquement (19350/19351). Twitch/Kick = Restream. Source = obs.streamDestinationMode + aitumVertical.igVia."
   }
 }

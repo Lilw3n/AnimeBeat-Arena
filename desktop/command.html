@@ -409,22 +409,23 @@
         <h2>Flux de stream (horizontal / vertical)</h2>
         <p class="hint">
           <b>Ne change pas le Go Live</b> : ça règle seulement <i>où</i> part chaque orientation.
-          Défaut recommandé = <b>Restream (H)</b> + <b>Aitum Vertical (V → Instagram)</b>.
-          Option nginx = OBS → <code>nginx.conf</code> :1935 + stunnel Meta (déjà en place).
+          Défaut = <b>Restream (H Twitch/Kick…)</b> + <b>Aitum (V → Instagram)</b>.
+          <b>stunnel = Facebook + Instagram uniquement</b> (Meta RTMPS : FB :19350 · IG :19351).
+          Pas Twitch / Kick. nginx :1935 republie vers stunnel pour Meta.
         </p>
         <div class="row">
           <div>
             <label>Horizontal (Twitch / Kick / …)</label>
             <select id="routeHorizontal">
               <option value="restream">OBS Restream (recommandé)</option>
-              <option value="nginx">nginx local (:1935 + nginx.conf)</option>
+              <option value="nginx">nginx → stunnel Meta (FB :19350, + IG si V=nginx)</option>
             </select>
           </div>
           <div>
-            <label>Vertical (Instagram)</label>
+            <label>Vertical (Instagram Meta)</label>
             <select id="routeVertical">
-              <option value="aitum">Aitum Vertical Streaming (recommandé)</option>
-              <option value="nginx">nginx + stunnel IG (:19351)</option>
+              <option value="aitum">Aitum → Instagram (recommandé, sans stunnel)</option>
+              <option value="nginx">nginx → stunnel IG :19351 (Meta)</option>
             </select>
           </div>
         </div>
@@ -475,7 +476,7 @@
       <section class="full">
         <h2>Apps locales (auto-démarrage)</h2>
         <p class="hint">
-          Au lancement du hub : <b>stunnel</b> (FB/IG + nginx), OBS, Streamer.bot, Social Stream.
+          Au lancement du hub : <b>stunnel</b> (Meta = Facebook :19350 + Instagram :19351), OBS, Streamer.bot, Social Stream.
           Coche « ne pas ouvrir » pour skip. Si tu fermes une app à la main, elle ne se rouvre pas cette session.
         </p>
         <label style="display:flex;gap:8px;align-items:center;margin:8px 0">
@@ -487,7 +488,7 @@
           <label style="display:flex;gap:6px;align-items:center;margin:0"><input type="checkbox" id="skipSb" /> Ne pas ouvrir Streamer.bot</label>
           <label style="display:flex;gap:6px;align-items:center;margin:0"><input type="checkbox" id="skipSsn" /> Ne pas ouvrir Social Stream</label>
         </div>
-        <label>Chemin stunnel (FB/IG RTMPS)</label>
+        <label>Chemin stunnel (Meta FB+IG RTMPS uniquement)</label>
         <input id="pathStunnel" placeholder="C:\Users\...\Documents\Stream\stunnel\bin\stunnel.exe" />
         <div class="actions" style="margin-top:8px">
           <button class="primary" id="btnDiscover">Relire mes configs locales</button>
@@ -2149,12 +2150,12 @@
           const ve = v?.value || "aitum";
           diagram.textContent =
             he === "restream" && ve === "aitum"
-              ? "Schéma: OBS (H) → Restream  ·||·  Aitum Vertical (V) → Instagram"
+              ? "Schéma: OBS (H) → Restream (Twitch/Kick…)  ·||·  Aitum (V) → IG  ·  stunnel = FB+IG Meta seulement"
               : he === "nginx" && ve === "aitum"
-                ? "Schéma: OBS (H) → nginx:1935  ·||·  Aitum (V) → Instagram"
+                ? "Schéma: OBS (H) → nginx → stunnel FB:19350  ·||·  Aitum (V) → Instagram"
                 : he === "restream" && ve === "nginx"
-                  ? "Schéma: OBS (H) → Restream  ·||·  nginx/stunnel → Instagram"
-                  : "Schéma: OBS → nginx:1935 → stunnel (FB+IG)";
+                  ? "Schéma: OBS (H) → Restream  ·||·  nginx → stunnel IG:19351 → Instagram"
+                  : "Schéma: OBS → nginx:1935 → stunnel Meta (FB:19350 + IG:19351)";
         }
       }
 

@@ -25,10 +25,10 @@ Stream Command = bouton toolbar ou `Ctrl+S`. Chat hub = mode **Chat SSN**.
 
 | Orientation | Défaut (recommandé) | Alternative |
 |-------------|---------------------|-------------|
-| **Horizontal** | OBS Restream (`streamDestinationMode=leave`) | nginx `:1935` + `nginx.conf` push |
-| **Vertical (IG)** | Aitum Vertical Streaming (`igVia=aitum`) | nginx + stunnel `:19351` (`igVia=nginx`) |
+| **Horizontal** | OBS Restream (`streamDestinationMode=leave`) | nginx `:1935` → stunnel **Meta** |
+| **Vertical (IG)** | Aitum Vertical Streaming (`igVia=aitum`) | nginx → stunnel IG `:19351` |
 
-Ne pas passer en nginx H sauf besoin Meta via stunnel sans Restream. Les défauts ne cassent pas le Go Live actuel.
+**stunnel = Facebook + Instagram seulement** (RTMPS Meta : FB `:19350` · IG `:19351`). Twitch/Kick passent par Restream, pas stunnel.
 
 Sources de référence clonées : `../vendor/social_stream`, `../vendor/Streamer.bot`, `../vendor/obs-studio`.
 

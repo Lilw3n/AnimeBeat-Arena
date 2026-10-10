@@ -3,11 +3,12 @@
  *
  * Horizontal (défaut Restream):
  *   restream → OBS destination inchangée (Twitch/Kick/…) — streamDestinationMode=leave
- *   nginx    → OBS → 127.0.0.1:1935/live → nginx.conf push (+ stunnel Meta)
+ *   nginx    → OBS → 127.0.0.1:1935/live → nginx.conf
+ *              → stunnel = UNIQUEMENT Meta : FB :19350 + IG :19351 (pas Twitch/Kick)
  *
  * Vertical Instagram (défaut Aitum):
- *   aitum → Aitum Vertical Streaming → RTMPS IG (igVia=aitum, serverMode=producer)
- *   nginx → OBS/nginx → stunnel:19351 → IG (igVia=nginx)
+ *   aitum → Aitum Vertical Streaming → RTMPS IG direct (igVia=aitum)
+ *   nginx → OBS/nginx → stunnel IG :19351 → Instagram
  *
  * Ne remplace pas go-live / Aitum / nginx : mappe seulement les knobs existants.
  */
@@ -44,16 +45,20 @@ function getRoutes(config = {}) {
           : "OBS Restream (recommandé — destination OBS intacte)",
       destinations:
         h === "nginx"
-          ? ["Twitch/Kick/YT si push nginx", "Facebook via stunnel:19350", "IG si vertical=nginx"]
-          : ["Twitch / Kick / YT / FB via Restream OBS", "Meta IG ≠ ce chemin"],
+          ? [
+              "Facebook → stunnel:19350 (Meta)",
+              "Instagram → stunnel:19351 si vertical=nginx (Meta)",
+              "Twitch/Kick seulement si push nginx dédiés (sinon Restream)",
+            ]
+          : ["Twitch / Kick / YT via Restream OBS", "FB/IG Meta ≠ stunnel ici (sauf Restream Meta)"],
     },
     vertical: {
       engine: v,
       label:
         v === "aitum"
-          ? "Aitum Vertical Streaming (recommandé pour Instagram)"
-          : "nginx + stunnel IG (:19351)",
-      destinations: ["Instagram Live"],
+          ? "Aitum Vertical → Instagram (recommandé, sans stunnel)"
+          : "nginx → stunnel IG :19351 (Meta Instagram)",
+      destinations: ["Instagram Live (Meta)"],
       width: Number(a.width) || 1080,
       height: Number(a.height) || 1920,
       aitumIndex: Number(a.instagramOutputIndex ?? 0),
@@ -61,16 +66,16 @@ function getRoutes(config = {}) {
     },
     diagram:
       h === "restream" && v === "aitum"
-        ? "OBS (H) → Restream ·||· Aitum Vertical (V) → Instagram"
+        ? "OBS (H) → Restream (Twitch/Kick…) ·||· Aitum (V) → Instagram · stunnel = FB/IG Meta seulement"
         : h === "nginx" && v === "aitum"
-          ? "OBS (H) → nginx:1935 ·||· Aitum (V) → Instagram"
+          ? "OBS (H) → nginx → stunnel FB:19350 ·||· Aitum (V) → Instagram"
           : h === "restream" && v === "nginx"
-            ? "OBS (H) → Restream ·||· nginx/stunnel → Instagram"
-            : "OBS → nginx:1935 → stunnel (FB+IG) — un seul chemin",
+            ? "OBS (H) → Restream ·||· nginx → stunnel IG:19351 → Instagram"
+            : "OBS → nginx:1935 → stunnel Meta (FB:19350 + IG:19351)",
     defaults: {
       horizontal: "restream",
       vertical: "aitum",
-      note: "Ne pas passer en nginx H sauf besoin Meta via stunnel sans Restream.",
+      note: "stunnel = Facebook + Instagram (Meta RTMPS). Twitch/Kick = Restream, pas stunnel.",
     },
   };
 }
