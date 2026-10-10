@@ -26,6 +26,7 @@ const nginxRtmp = require("./nginx-rtmp");
 const autoUpdate = require("./auto-update");
 const { buildLiveLinks } = require("./live-links");
 const { verifyLiveUpdates } = require("./verify-live-updates");
+const streamRoutes = require("./stream-routes");
 const { notify } = require("./notify");
 
 /**
@@ -181,6 +182,51 @@ function registerStreamIpc(options = {}) {
       },
     ],
     ["stream:get-live-links", async () => buildLiveLinks(loadConfig())],
+    [
+      "stream:routes-status",
+      async () => {
+        const config = loadConfig();
+        const routes = streamRoutes.getRoutes(config);
+        const nginx = nginxRtmp.isNginxListening1935();
+        const paths = nginxRtmp.resolveNginxPaths(config);
+        return {
+          ok: true,
+          routes,
+          nginx: {
+            listening: Boolean(nginx.ok && nginx.isNginx),
+            pid: nginx.pid || null,
+            conf: paths.conf,
+            exe: paths.exe,
+          },
+          obsMode: config.obs?.streamDestinationMode || "leave",
+          igVia: config.aitumVertical?.igVia || "aitum",
+        };
+      },
+    ],
+    [
+      "stream:routes-apply",
+      async (_e, payload = {}) => {
+        const config = loadConfig();
+        const applied = streamRoutes.applyRoutes(config, {
+          horizontal: payload.horizontal,
+          vertical: payload.vertical,
+        });
+        saveConfig(applied.config);
+        notify(
+          "Flux",
+          applied.changed.length
+            ? `Mis à jour: ${applied.changed.join(", ")}`
+            : `OK · ${applied.routes.diagram}`,
+          "info",
+        );
+        return {
+          ok: true,
+          changed: applied.changed,
+          routes: applied.routes,
+          config: applied.config,
+        };
+      },
+    ],
     [
       "stream:copy-text",
       async (_e, text) => {

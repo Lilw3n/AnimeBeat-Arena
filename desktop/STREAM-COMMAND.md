@@ -21,6 +21,15 @@ Stream Command = bouton toolbar ou `Ctrl+S`. Chat hub = mode **Chat SSN**.
 | Multilive | Relais RTMP local | OBS → hub → Twitch/Kick/FB/IG/YT |
 | TikTok | TikTok LIVE Studio | Toujours en parallèle (externe) |
 
+### Flux horizontal / vertical (Stream Command → Flux H/V)
+
+| Orientation | Défaut (recommandé) | Alternative |
+|-------------|---------------------|-------------|
+| **Horizontal** | OBS Restream (`streamDestinationMode=leave`) | nginx `:1935` + `nginx.conf` push |
+| **Vertical (IG)** | Aitum Vertical Streaming (`igVia=aitum`) | nginx + stunnel `:19351` (`igVia=nginx`) |
+
+Ne pas passer en nginx H sauf besoin Meta via stunnel sans Restream. Les défauts ne cassent pas le Go Live actuel.
+
 Sources de référence clonées : `../vendor/social_stream`, `../vendor/Streamer.bot`, `../vendor/obs-studio`.
 
 ## Setup Social Stream Ninja

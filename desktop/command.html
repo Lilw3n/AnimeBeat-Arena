@@ -374,6 +374,7 @@
     </header>
     <nav class="jump-nav" aria-label="Accès rapide">
       <a href="#sec-live-viewers">Viewers</a>
+      <a href="#sec-stream-routes">Flux H/V</a>
       <a href="#sec-live-links">Liens live</a>
       <a href="#sec-titles">Titres &amp; jeux</a>
       <a href="#sec-ig-link">Lien Instagram</a>
@@ -402,6 +403,37 @@
           <button type="button" id="btnUpdOpenRelease">Ouvrir dossier release</button>
         </div>
         <p class="hint" id="updHint">—</p>
+      </section>
+
+      <section class="full" id="sec-stream-routes">
+        <h2>Flux de stream (horizontal / vertical)</h2>
+        <p class="hint">
+          <b>Ne change pas le Go Live</b> : ça règle seulement <i>où</i> part chaque orientation.
+          Défaut recommandé = <b>Restream (H)</b> + <b>Aitum Vertical (V → Instagram)</b>.
+          Option nginx = OBS → <code>nginx.conf</code> :1935 + stunnel Meta (déjà en place).
+        </p>
+        <div class="row">
+          <div>
+            <label>Horizontal (Twitch / Kick / …)</label>
+            <select id="routeHorizontal">
+              <option value="restream">OBS Restream (recommandé)</option>
+              <option value="nginx">nginx local (:1935 + nginx.conf)</option>
+            </select>
+          </div>
+          <div>
+            <label>Vertical (Instagram)</label>
+            <select id="routeVertical">
+              <option value="aitum">Aitum Vertical Streaming (recommandé)</option>
+              <option value="nginx">nginx + stunnel IG (:19351)</option>
+            </select>
+          </div>
+        </div>
+        <div class="actions" style="margin-top:8px">
+          <button type="button" class="primary" id="btnRoutesApply">Appliquer le routage</button>
+          <button type="button" id="btnRoutesRefresh">État nginx / flux</button>
+        </div>
+        <p class="hint" id="routesDiagram">Schéma: —</p>
+        <p class="hint" id="routesHint">—</p>
       </section>
 
       <section class="full" id="sec-live-viewers">
@@ -1620,6 +1652,7 @@
         if (preserve) {
           preserve.checked = (config.obs.streamDestinationMode || "leave") !== "nginx";
         }
+        fillStreamRoutesUi(config);
         const map = document.getElementById("sceneMap");
         map.innerHTML = "";
         for (let i = 1; i <= 10; i += 1) {
@@ -1899,9 +1932,22 @@
         next.obs.host = document.getElementById("obsHost").value.trim();
         next.obs.port = Number(document.getElementById("obsPort").value) || 4455;
         next.obs.password = document.getElementById("obsPassword").value;
-        next.obs.streamDestinationMode = document.getElementById("obsPreserveRestream")?.checked
-          ? "leave"
-          : "nginx";
+        // Flux H: sélecteur dédié prioritaire, sinon case « préserver Restream »
+        const routeH = document.getElementById("routeHorizontal")?.value;
+        if (routeH === "nginx") {
+          next.obs.streamDestinationMode = "nginx";
+        } else if (routeH === "restream") {
+          next.obs.streamDestinationMode = "leave";
+        } else {
+          next.obs.streamDestinationMode = document.getElementById("obsPreserveRestream")
+            ?.checked
+            ? "leave"
+            : "nginx";
+        }
+        const preserveBox = document.getElementById("obsPreserveRestream");
+        if (preserveBox) {
+          preserveBox.checked = next.obs.streamDestinationMode !== "nginx";
+        }
         next.obs.textSources = {
           title: document.getElementById("obsTitleSource").value.trim(),
           game: document.getElementById("obsGameSource").value.trim(),
@@ -1969,6 +2015,23 @@
           stunnelUrl: next.aitumVertical?.stunnelUrl || "rtmp://127.0.0.1:19351/rtmp",
           autoStartStreaming: next.aitumVertical?.autoStartStreaming !== false,
           igVia: next.aitumVertical?.igVia || "aitum",
+        };
+        // Flux V: Instagram via Aitum ou nginx/stunnel
+        const routeV = document.getElementById("routeVertical")?.value;
+        if (routeV === "aitum") {
+          next.aitumVertical.igVia = "aitum";
+          next.aitumVertical.pushIgCredentials = true;
+          if ((next.aitumVertical.serverMode || "producer") === "stunnel") {
+            next.aitumVertical.serverMode = "producer";
+          }
+        } else if (routeV === "nginx") {
+          next.aitumVertical.igVia = "nginx";
+          next.aitumVertical.serverMode = "stunnel";
+        }
+        next.streamRoutes = {
+          horizontal:
+            next.obs.streamDestinationMode === "nginx" ? "nginx" : "restream",
+          vertical: next.aitumVertical.igVia === "nginx" ? "nginx" : "aitum",
         };
 
         next.platforms = next.platforms || {};
@@ -2065,6 +2128,58 @@
           };
           root.appendChild(row);
         });
+      }
+
+      function fillStreamRoutesUi(cfg) {
+        const h = document.getElementById("routeHorizontal");
+        const v = document.getElementById("routeVertical");
+        const mode = cfg?.obs?.streamDestinationMode || "leave";
+        const igVia = cfg?.aitumVertical?.igVia || "aitum";
+        if (h) h.value = mode === "nginx" ? "nginx" : "restream";
+        if (v) {
+          v.value =
+            igVia === "nginx" ||
+            (cfg?.aitumVertical?.serverMode === "stunnel" && igVia !== "aitum")
+              ? "nginx"
+              : "aitum";
+        }
+        const diagram = document.getElementById("routesDiagram");
+        if (diagram) {
+          const he = h?.value || "restream";
+          const ve = v?.value || "aitum";
+          diagram.textContent =
+            he === "restream" && ve === "aitum"
+              ? "Schéma: OBS (H) → Restream  ·||·  Aitum Vertical (V) → Instagram"
+              : he === "nginx" && ve === "aitum"
+                ? "Schéma: OBS (H) → nginx:1935  ·||·  Aitum (V) → Instagram"
+                : he === "restream" && ve === "nginx"
+                  ? "Schéma: OBS (H) → Restream  ·||·  nginx/stunnel → Instagram"
+                  : "Schéma: OBS → nginx:1935 → stunnel (FB+IG)";
+        }
+      }
+
+      async function refreshRoutesStatus() {
+        const hint = document.getElementById("routesHint");
+        if (!window.streamHub?.routesStatus) return;
+        try {
+          const st = await window.streamHub.routesStatus();
+          fillStreamRoutesUi({
+            obs: { streamDestinationMode: st.obsMode },
+            aitumVertical: { igVia: st.igVia },
+          });
+          const diagram = document.getElementById("routesDiagram");
+          if (diagram && st.routes?.diagram) {
+            diagram.textContent = `Schéma: ${st.routes.diagram}`;
+          }
+          if (hint) {
+            const nx = st.nginx?.listening
+              ? `nginx :1935 OK (pid ${st.nginx.pid || "?"})`
+              : "nginx :1935 OFF / pas nginx";
+            hint.textContent = `${nx} · conf ${st.nginx?.conf || "—"} · H=${st.routes?.horizontal?.engine} · V=${st.routes?.vertical?.engine}`;
+          }
+        } catch (err) {
+          if (hint) hint.textContent = err.message || "erreur flux";
+        }
       }
 
       function renderLiveViewers(snap) {
@@ -2381,6 +2496,62 @@
 
       async function init() {
         makeSectionsFoldable();
+        document.getElementById("btnRoutesApply")?.addEventListener("click", async () => {
+          const horizontal = document.getElementById("routeHorizontal")?.value || "restream";
+          const vertical = document.getElementById("routeVertical")?.value || "aitum";
+          const res = await window.streamHub.routesApply({ horizontal, vertical });
+          if (res?.config) config = res.config;
+          fillObsFields();
+          fillStreamRoutesUi(config);
+          await refreshRoutesStatus();
+          toast(
+            "Flux",
+            res?.changed?.length
+              ? `Appliqué: ${res.changed.join(", ")}`
+              : res?.routes?.diagram || "OK",
+            res?.ok ? "info" : "warn",
+          );
+        });
+        document.getElementById("btnRoutesRefresh")?.addEventListener("click", () =>
+          refreshRoutesStatus(),
+        );
+        document.getElementById("routeHorizontal")?.addEventListener("change", () => {
+          const preserve = document.getElementById("obsPreserveRestream");
+          if (preserve) {
+            preserve.checked =
+              document.getElementById("routeHorizontal").value !== "nginx";
+          }
+          fillStreamRoutesUi({
+            obs: {
+              streamDestinationMode:
+                document.getElementById("routeHorizontal").value === "nginx"
+                  ? "nginx"
+                  : "leave",
+            },
+            aitumVertical: {
+              igVia:
+                document.getElementById("routeVertical")?.value === "nginx"
+                  ? "nginx"
+                  : "aitum",
+            },
+          });
+        });
+        document.getElementById("routeVertical")?.addEventListener("change", () => {
+          fillStreamRoutesUi({
+            obs: {
+              streamDestinationMode:
+                document.getElementById("routeHorizontal")?.value === "nginx"
+                  ? "nginx"
+                  : "leave",
+            },
+            aitumVertical: {
+              igVia:
+                document.getElementById("routeVertical").value === "nginx"
+                  ? "nginx"
+                  : "aitum",
+            },
+          });
+        });
         document.getElementById("btnFoldAllPlatforms")?.addEventListener("click", () => {
           setAllPlatformFolds(false);
         });
@@ -2421,6 +2592,7 @@
         if (config.streamerBot?.enabled) await window.streamHub.streamerbotConnect();
         await refreshStatus();
         await refreshUpdateStatus();
+        await refreshRoutesStatus();
         setTimeout(refreshCompanionsHint, 4000);
         window.streamHub.onEvent((ev) => {
           if (ev.type === "toast") toast(ev.title, ev.body, ev.level);

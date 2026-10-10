@@ -37,6 +37,8 @@ contextBridge.exposeInMainWorld("streamHub", {
     ipcRenderer.invoke("stream:ssn-ensure-instagram", payload),
   liveViewers: () => ipcRenderer.invoke("stream:live-viewers"),
   liveViewersRefresh: () => ipcRenderer.invoke("stream:live-viewers-refresh"),
+  routesStatus: () => ipcRenderer.invoke("stream:routes-status"),
+  routesApply: (payload) => ipcRenderer.invoke("stream:routes-apply", payload),
   streamerbotConnect: () => ipcRenderer.invoke("stream:streamerbot-connect"),
   streamerbotStatus: () => ipcRenderer.invoke("stream:streamerbot-status"),
   streamerbotActions: () => ipcRenderer.invoke("stream:streamerbot-actions"),

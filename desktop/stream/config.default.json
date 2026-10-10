@@ -214,5 +214,10 @@
     "height": 1920,
     "autoStartStreaming": true,
     "note": "IG = Aitum Vertical Streaming (pas le bouton Stream OBS). Préparer IG → clé dans le slot → Start Streaming Vertical → Lancer un direct. igVia=aitum|nginx. index 0 = 1re ligne. serverMode=producer (URL IG) ou stunnel."
+  },
+  "streamRoutes": {
+    "horizontal": "restream",
+    "vertical": "aitum",
+    "note": "UI Flux: restream|nginx (H) + aitum|nginx (V). Source de vérité = obs.streamDestinationMode (leave/nginx) + aitumVertical.igVia. Défauts = Restream H + Aitum V (ne pas casser)."
   }
 }
