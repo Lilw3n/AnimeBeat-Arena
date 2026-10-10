@@ -99,6 +99,53 @@
         background: #1a1020;
       }
       .live-link-row.onair .name { color: #fca5a5; }
+      .live-link-row { cursor: context-menu; }
+      .ctx-menu {
+        position: fixed;
+        z-index: 9999;
+        min-width: 200px;
+        background: #121a38;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.45);
+        padding: 4px;
+        display: none;
+      }
+      .ctx-menu.open { display: block; }
+      .ctx-menu button {
+        display: block;
+        width: 100%;
+        text-align: left;
+        border: 0;
+        background: transparent;
+        color: var(--text);
+        padding: 8px 10px;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 12px;
+      }
+      .ctx-menu button:hover { background: rgba(130, 154, 255, 0.18); }
+      .chat-feed {
+        max-height: 220px;
+        overflow: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        margin-top: 8px;
+        padding: 6px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: #0a1028;
+      }
+      .chat-row {
+        font-size: 12px;
+        padding: 4px 6px;
+        border-radius: 6px;
+        cursor: context-menu;
+      }
+      .chat-row:hover { background: rgba(130, 154, 255, 0.12); }
+      .chat-row .plat { color: var(--muted); margin-right: 6px; }
+      .chat-row .user { color: var(--accent); font-weight: 600; margin-right: 6px; }
       .cam-box {
         margin-top: 10px;
         padding: 10px;
@@ -329,6 +376,7 @@
         <p class="hint">
           Les liens <b>🔴 LIVE</b> se mettent à jour automatiquement après « Lancer un direct » FB/IG
           (scrape Producer + Graph FB si token). Sinon = page/profil.
+          <b>Clic droit</b> sur une ligne → copier le lien / tous les liens / ouvrir.
         </p>
         <div class="row" style="margin-bottom:8px">
           <div>
@@ -729,10 +777,18 @@
         <div class="actions">
           <button class="primary" id="btnSsnConnect">Connecter SSN</button>
           <button id="btnSsnOpenDock">Ouvrir dock</button>
-          <button class="primary" id="btnSsnIgChat">Relancer chat IG (SSN)</button>
+          <button class="primary" id="btnSsnIgChat">Relancer chat IG (live)</button>
+          <button id="btnSsnIgChatOff">Chat IG hors live (profil)</button>
         </div>
         <p class="hint" id="ssnHint">—</p>
+        <p class="hint">
+          Hors live : SSN ouvre le <b>profil</b> IG pour récupérer follows / likes / commentaires posts (inbox).
+          En live : page <b>/live/</b>. Clic droit sur un message → copier.
+        </p>
+        <div id="ssnChatFeed" class="chat-feed" aria-live="polite"></div>
       </section>
+
+      <div id="ctxMenu" class="ctx-menu" role="menu"></div>
 
       <section>
         <h2>Streamer.bot (titres & jeux)</h2>
@@ -2023,6 +2079,78 @@
         }
       }
 
+      function hideCtxMenu() {
+        const menu = document.getElementById("ctxMenu");
+        if (menu) {
+          menu.classList.remove("open");
+          menu.innerHTML = "";
+        }
+      }
+
+      function showCtxMenu(ev, items) {
+        ev.preventDefault();
+        const menu = document.getElementById("ctxMenu");
+        if (!menu || !items?.length) return;
+        menu.innerHTML = "";
+        items.forEach((item) => {
+          const btn = document.createElement("button");
+          btn.type = "button";
+          btn.textContent = item.label;
+          btn.onclick = async () => {
+            hideCtxMenu();
+            try {
+              await item.onClick();
+            } catch {
+              /* ignore */
+            }
+          };
+          menu.appendChild(btn);
+        });
+        menu.classList.add("open");
+        const x = Math.min(ev.clientX, window.innerWidth - 220);
+        const y = Math.min(ev.clientY, window.innerHeight - 40 - items.length * 36);
+        menu.style.left = `${Math.max(8, x)}px`;
+        menu.style.top = `${Math.max(8, y)}px`;
+      }
+
+      document.addEventListener("click", hideCtxMenu);
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") hideCtxMenu();
+      });
+
+      function appendChatRow(chat) {
+        const feed = document.getElementById("ssnChatFeed");
+        if (!feed || !chat) return;
+        const row = document.createElement("div");
+        row.className = "chat-row";
+        const line = `${chat.user || "?"} · ${chat.text || ""}`;
+        row.innerHTML = `<span class="plat"></span><span class="user"></span><span class="msg"></span>`;
+        row.querySelector(".plat").textContent = chat.platform || "ssn";
+        row.querySelector(".user").textContent = chat.user || "";
+        row.querySelector(".msg").textContent = chat.text || "";
+        row.title = line;
+        row.oncontextmenu = (ev) => {
+          showCtxMenu(ev, [
+            {
+              label: "Copier le message",
+              onClick: async () => {
+                await window.streamHub.copyText(line);
+                toast("Chat", "Message copié", "info");
+              },
+            },
+            {
+              label: "Copier l’utilisateur",
+              onClick: async () => {
+                await window.streamHub.copyText(chat.user || "");
+                toast("Chat", "Pseudo copié", "info");
+              },
+            },
+          ]);
+        };
+        feed.prepend(row);
+        while (feed.children.length > 80) feed.removeChild(feed.lastChild);
+      }
+
       async function renderLiveLinks(prefetched) {
         const root = document.getElementById("liveLinksList");
         if (!root || !window.streamHub?.getLiveLinks) return;
@@ -2040,18 +2168,91 @@
           row.querySelector(".name").textContent = link.title || link.id;
           row.querySelector(".url").textContent = link.url || "";
           row.querySelector(".url").title = link.url || "";
-          row.querySelector('[data-act="copy"]').onclick = async () => {
+          const copyUrl = async () => {
             await window.streamHub.copyText(link.url);
             toast("Lien", `Copié: ${link.title}`, "info");
           };
+          row.querySelector('[data-act="copy"]').onclick = copyUrl;
           row.querySelector('[data-act="open"]').onclick = async () => {
             await window.streamHub.openUrl(link.url);
+          };
+          row.oncontextmenu = (ev) => {
+            showCtxMenu(ev, [
+              {
+                label: "Copier le lien",
+                onClick: copyUrl,
+              },
+              {
+                label: "Copier titre + lien",
+                onClick: async () => {
+                  await window.streamHub.copyText(`${link.title || link.id}: ${link.url}`);
+                  toast("Lien", "Titre + lien copiés", "info");
+                },
+              },
+              {
+                label: "Copier tous les liens live",
+                onClick: async () => {
+                  const all = await window.streamHub.getLiveLinks();
+                  const text = (all || [])
+                    .map((l) => `${l.title}: ${l.url}`)
+                    .join("\n");
+                  await window.streamHub.copyText(text);
+                  toast("Liens", "Tous les liens copiés", "info");
+                },
+              },
+              {
+                label: "Ouvrir le lien",
+                onClick: async () => {
+                  await window.streamHub.openUrl(link.url);
+                },
+              },
+            ]);
           };
           root.appendChild(row);
         });
         const igUser = document.getElementById("igUsername");
         if (igUser && config?.platforms?.instagram) {
           igUser.value = config.platforms.instagram.username || "";
+        }
+      }
+
+      async function ensureIgChat(mode) {
+        const hint = document.getElementById("ssnHint");
+        if (hint) {
+          hint.textContent =
+            mode === "profile"
+              ? "Chat IG hors live (profil / inbox)…"
+              : "Relance source Instagram Live dans SSN…";
+        }
+        config = collectConfigFromUi();
+        const user = document.getElementById("ssnIgUser")?.value?.trim();
+        if (user) {
+          config.platforms = config.platforms || {};
+          config.platforms.instagram = {
+            ...(config.platforms.instagram || {}),
+            username: user.replace(/^@/, ""),
+          };
+        }
+        await window.streamHub.saveConfig(config);
+        try {
+          await window.streamHub.launchApp("socialstream");
+          const res = await window.streamHub.ssnEnsureInstagram({
+            username: user,
+            forceRestart: true,
+            mode,
+          });
+          const msg = res?.ok
+            ? mode === "profile"
+              ? `IG hors live OK · ${res.source?.handle || user || "profil"}`
+              : `IG chat OK · ${res.source?.handle || user || "source"}`
+            : res?.reason || "Échec chat IG";
+          if (hint) hint.textContent = msg;
+          toast("SSN", msg, res?.ok ? "info" : "warn");
+          const st = await window.streamHub.ssnStatus();
+          (st.recentChat || []).slice().reverse().forEach(appendChatRow);
+        } catch (err) {
+          if (hint) hint.textContent = err.message || "erreur";
+          toast("SSN", err.message || "erreur", "warn");
         }
       }
 
@@ -2081,6 +2282,9 @@
           }
           if (ev.type === "live-viewers") {
             renderLiveViewers(ev);
+          }
+          if (ev.type === "ssn-chat" && ev.chat) {
+            appendChatRow(ev.chat);
           }
           if (ev.type === "instagram-credentials") {
             const hint = document.getElementById("igHint");
@@ -2718,6 +2922,14 @@
         } catch {
           /* optional */
         }
+        // Après fin de live IG : bascule SSN sur le profil pour continuer l’inbox hors live
+        if (res?.ok && (which === "instagram" || which === "both")) {
+          try {
+            await ensureIgChat("profile");
+          } catch {
+            /* optional */
+          }
+        }
         return res;
       }
       document.getElementById("btnIgEndLive").onclick = () => endMetaLive("instagram");
@@ -2754,35 +2966,12 @@
         else toast("SSN", "Session ID manquant", "warn");
       };
       document.getElementById("btnSsnIgChat")?.addEventListener("click", async () => {
-        const hint = document.getElementById("ssnHint");
-        if (hint) hint.textContent = "Relance source Instagram Live dans SSN…";
-        config = collectConfigFromUi();
-        const user = document.getElementById("ssnIgUser")?.value?.trim();
-        if (user) {
-          config.platforms = config.platforms || {};
-          config.platforms.instagram = {
-            ...(config.platforms.instagram || {}),
-            username: user.replace(/^@/, ""),
-          };
-        }
-        await window.streamHub.saveConfig(config);
-        try {
-          // Relance SSN si besoin (Control API)
-          await window.streamHub.launchApp("socialstream");
-          const res = await window.streamHub.ssnEnsureInstagram({
-            username: user,
-            forceRestart: true,
-          });
-          const msg = res?.ok
-            ? `IG chat OK · ${res.source?.handle || user || "source"}`
-            : res?.reason || "échec — ferme SSN puis réessaie (flag Control API)";
-          if (hint) hint.textContent = msg;
-          toast("SSN IG", msg, res?.ok ? "info" : "warn");
-          await refreshStatus();
-        } catch (err) {
-          if (hint) hint.textContent = err?.message || "erreur";
-          toast("SSN IG", err?.message || "erreur", "warn");
-        }
+        await ensureIgChat("live");
+        await refreshStatus();
+      });
+      document.getElementById("btnSsnIgChatOff")?.addEventListener("click", async () => {
+        await ensureIgChat("profile");
+        await refreshStatus();
       });
       document.getElementById("btnSbConnect").onclick = async () => {
         config = collectConfigFromUi();

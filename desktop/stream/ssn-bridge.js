@@ -119,14 +119,20 @@ function connect(config) {
 
 function normalizeChat(data) {
   if (!data || typeof data !== "object") return null;
+  // viewer_update / likes_update → live-viewers, pas le fil chat
+  const ev = String(data.event || "").toLowerCase();
+  if (ev === "viewer_update" || ev === "viewer_updates" || ev === "likes_update") {
+    return null;
+  }
   const text = data.chatmessage || data.message || data.text || data.comment || "";
   const user = data.chatname || data.displayname || data.username || data.name || "";
-  if (!text && !user) return null;
+  if (!text && !user && !ev) return null;
   const platform = String(data.type || data.platform || data.source || "ssn").toLowerCase();
   return {
-    user,
-    text: String(text).slice(0, 500),
+    user: user || (ev ? `[${ev}]` : ""),
+    text: String(text || ev || "").slice(0, 500),
     platform,
+    event: ev || "",
     // alias pour filtres hub
     isInstagram: /instagram/.test(platform),
     at: Date.now(),
@@ -134,13 +140,16 @@ function normalizeChat(data) {
 }
 
 /**
- * Lance SSN (Control API) + démarre / relance la source Instagram Live pour les messages.
+ * Lance SSN (Control API) + démarre / relance Instagram pour les messages.
+ * mode: "auto" | "live" | "profile" — profile = hors live (inbox follows/likes/commentaires).
  */
 async function ensureInstagramChat(config, opts = {}) {
   const ssn = config.socialStreamNinja || {};
   if (ssn.enabled === false) {
     return { ok: false, skipped: true, reason: "SSN désactivé" };
   }
+
+  const mode = opts.mode === "live" || opts.mode === "profile" ? opts.mode : "auto";
 
   // 1) App SSN up (avec --ssapp-control-api)
   let launch = null;
@@ -174,24 +183,29 @@ async function ensureInstagramChat(config, opts = {}) {
       reason:
         ready.reason ||
         "Control API :17777 injoignable. Ferme Social Stream Ninja, puis « Lancer SSN » / Préparer IG depuis le hub.",
-      tip: "Dans SSN: source Instagram Live doit être connectée (compte loggé) pendant le direct.",
+      tip: "Dans SSN: source Instagram connectée (compte loggé). Hors live = page profil pour l’inbox.",
     };
   }
 
-  // 3) Source Instagram Live
+  // 3) Source Instagram (live ou profil hors live)
   const ensured = await ssapp.ensureInstagramLiveSource(config, {
     liveUrl: opts.liveUrl,
     username: opts.username,
     forceRestart: opts.forceRestart !== false,
+    mode,
   });
 
   // 4) WS chat hub
   connect(config);
 
   if (ensured.ok) {
-    notify("SSN", `Messages Instagram Live OK (${ensured.handle || "source"})`, "info");
+    const label =
+      ensured.mode === "profile"
+        ? `Messages IG hors live OK (${ensured.handle || "profil"})`
+        : `Messages Instagram Live OK (${ensured.handle || "source"})`;
+    notify("SSN", label, "info");
   } else {
-    notify("SSN", ensured.reason || "Instagram Live non démarré dans SSN", "warn");
+    notify("SSN", ensured.reason || "Instagram non démarré dans SSN", "warn");
   }
 
   return { ok: Boolean(ensured.ok), launch, api: ready, source: ensured, ws: getStatus() };

@@ -111,13 +111,31 @@ function resolveIgHandle(config = {}) {
 }
 
 /**
- * Assure qu’une source Instagram Live est présente, à jour, et démarrée dans SSN.
+ * Assure qu’une source Instagram est présente et démarrée dans SSN.
+ * @param {"auto"|"live"|"profile"} mode
+ *   - live: page /pseudo/live/ (chat du direct)
+ *   - profile: page profil (inbox hors live: follows, likes, commentaires posts)
+ *   - auto: live si liveUrl présent, sinon profil
  */
-async function ensureInstagramLiveSource(config, { liveUrl, username, forceRestart = true } = {}) {
+async function ensureInstagramLiveSource(
+  config,
+  { liveUrl, username, forceRestart = true, mode = "auto" } = {},
+) {
   const handle = String(username || resolveIgHandle(config) || "").replace(/^@/, "").trim();
-  const url =
-    String(liveUrl || config.platforms?.instagram?.liveUrl || "").trim() ||
-    (handle ? `https://www.instagram.com/${handle}/live/` : "");
+  const configuredLive = String(liveUrl || config.platforms?.instagram?.liveUrl || "").trim();
+  const profileUrl =
+    (handle ? `https://www.instagram.com/${handle}/` : "") ||
+    String(config.platforms?.instagram?.profileUrl || "").trim();
+  const livePageUrl =
+    configuredLive || (handle ? `https://www.instagram.com/${handle}/live/` : "");
+
+  const resolvedMode =
+    mode === "live" || mode === "profile"
+      ? mode
+      : configuredLive
+        ? "live"
+        : "profile";
+  const url = resolvedMode === "profile" ? profileUrl || livePageUrl : livePageUrl;
 
   if (!handle && !url) {
     return {
@@ -172,8 +190,21 @@ async function ensureInstagramLiveSource(config, { liveUrl, username, forceResta
       sourceId: igSrc.id || igSrc.sourceId,
     });
     if (start.ok) {
-      notify("SSN", `Chat Instagram Live démarré (${handle})`, "info");
-      return { ok: true, started: true, sourceId: igSrc.id || igSrc.sourceId, handle, url };
+      notify(
+        "SSN",
+        resolvedMode === "profile"
+          ? `Chat IG hors live (profil) · ${handle}`
+          : `Chat Instagram Live démarré (${handle})`,
+        "info",
+      );
+      return {
+        ok: true,
+        started: true,
+        sourceId: igSrc.id || igSrc.sourceId,
+        handle,
+        url,
+        mode: resolvedMode,
+      };
     }
     const restart = await command(config, "restartSource", {
       sourceId: igSrc.id || igSrc.sourceId,
@@ -207,8 +238,14 @@ async function ensureInstagramLiveSource(config, { liveUrl, username, forceResta
     if (id) {
       await command(config, "startSource", { sourceId: id });
     }
-    notify("SSN", `Source Instagram Live ajoutée (${handle})`, "info");
-    return { ok: true, added: true, sourceId: id, handle, url };
+    notify(
+      "SSN",
+      resolvedMode === "profile"
+        ? `Source IG profil (hors live) · ${handle}`
+        : `Source Instagram Live ajoutée (${handle})`,
+      "info",
+    );
+    return { ok: true, added: true, sourceId: id, handle, url, mode: resolvedMode };
   }
 
   const start = await command(config, "startSource", {
@@ -221,6 +258,7 @@ async function ensureInstagramLiveSource(config, { liveUrl, username, forceResta
     sourceId: igSrc.id || igSrc.sourceId,
     handle,
     url,
+    mode: resolvedMode,
   };
 }
 

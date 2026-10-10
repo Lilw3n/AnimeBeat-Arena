@@ -528,6 +528,7 @@ function registerStreamIpc(options = {}) {
             liveUrl: config.platforms?.instagram?.liveUrl,
             username: config.platforms?.instagram?.username,
             forceRestart: true,
+            mode: "live",
           });
         } catch (err) {
           ssnIg = { ok: false, reason: err.message };
@@ -544,6 +545,7 @@ function registerStreamIpc(options = {}) {
           username: payload?.username || config.platforms?.instagram?.username,
           forceRestart: payload?.forceRestart !== false,
           relaunchIfNoApi: payload?.relaunchIfNoApi !== false,
+          mode: payload?.mode || "auto",
         });
       },
     ],

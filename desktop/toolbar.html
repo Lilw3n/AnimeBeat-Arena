@@ -105,6 +105,32 @@
       .spacer { flex: 1; }
       .slots-wrap { max-height: 120px; overflow: auto; }
       .live-links-wrap { flex-wrap: wrap; gap: 4px; }
+      .ctx-menu {
+        position: fixed;
+        z-index: 9999;
+        min-width: 180px;
+        background: #121a38;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.45);
+        padding: 4px;
+        display: none;
+      }
+      .ctx-menu.open { display: block; }
+      .ctx-menu button {
+        display: block;
+        width: 100%;
+        text-align: left;
+        border: 0;
+        background: transparent;
+        color: var(--text);
+        padding: 7px 10px;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 11px;
+      }
+      .ctx-menu button:hover { background: rgba(130, 154, 255, 0.18); }
+      .live-chip { cursor: context-menu; }
       .live-chip {
         display: inline-flex;
         align-items: center;
@@ -136,7 +162,7 @@
       <div class="row">
         <div class="brand">
           <div class="title">AnimeBeat Live Hub <span id="appVersion" style="color:#14b8ff"></span></div>
-          <div class="hint" id="appHint">Ctrl+1..9 · Alt+←/→ retour/avant · F5 actualiser · clic droit sur la page</div>
+          <div class="hint" id="appHint">Ctrl+1..9 · Alt+←/→ · F5 · clic droit sur un lien live = copier</div>
         </div>
         <div class="group" id="screenButtons">
           <span class="label">Écrans</span>
@@ -352,6 +378,42 @@
       const ro = new ResizeObserver(() => reportToolbarHeight());
       ro.observe(document.getElementById("toolbar"));
 
+      function hideCtxMenu() {
+        const menu = document.getElementById("ctxMenu");
+        if (menu) {
+          menu.classList.remove("open");
+          menu.innerHTML = "";
+        }
+      }
+
+      function showCtxMenu(ev, items) {
+        ev.preventDefault();
+        const menu = document.getElementById("ctxMenu");
+        if (!menu || !items?.length) return;
+        menu.innerHTML = "";
+        items.forEach((item) => {
+          const btn = document.createElement("button");
+          btn.type = "button";
+          btn.textContent = item.label;
+          btn.onclick = async () => {
+            hideCtxMenu();
+            try {
+              await item.onClick();
+            } catch {
+              /* ignore */
+            }
+          };
+          menu.appendChild(btn);
+        });
+        menu.classList.add("open");
+        const x = Math.min(ev.clientX, window.innerWidth - 200);
+        const y = Math.min(ev.clientY, window.innerHeight - 20 - items.length * 32);
+        menu.style.left = `${Math.max(4, x)}px`;
+        menu.style.top = `${Math.max(4, y)}px`;
+      }
+
+      document.addEventListener("click", hideCtxMenu);
+
       async function renderLiveLinksBar() {
         const bar = document.getElementById("liveLinksBar");
         if (!bar || !window.liveHub?.getLiveLinks) return;
@@ -361,31 +423,54 @@
           if (!link?.url) return;
           const chip = document.createElement("div");
           chip.className = `live-chip${link.isOnAir ? " onair" : ""}`;
-          chip.title = link.url;
+          chip.title = `${link.url} · clic droit pour copier`;
           const name = document.createElement("span");
           name.textContent = link.title || link.id;
           const openBtn = document.createElement("button");
           openBtn.type = "button";
           openBtn.textContent = "↗";
           openBtn.title = `Ouvrir ${link.title}`;
-          openBtn.addEventListener("click", async () => {
+          const openLink = async () => {
             if (link.openInHub && catalog.sources?.some((s) => s.id === link.id)) {
               await window.liveHub.openSourceLink(link.id);
             } else {
               await window.liveHub.openUrl(link.url);
             }
-          });
+          };
+          openBtn.addEventListener("click", openLink);
           const copyBtn = document.createElement("button");
           copyBtn.type = "button";
           copyBtn.textContent = "⧉";
           copyBtn.title = `Copier ${link.url}`;
-          copyBtn.addEventListener("click", async () => {
+          const copyUrl = async () => {
             await window.liveHub.copyText(link.url);
             copyBtn.textContent = "✓";
             setTimeout(() => {
               copyBtn.textContent = "⧉";
             }, 800);
-          });
+          };
+          copyBtn.addEventListener("click", copyUrl);
+          chip.oncontextmenu = (ev) => {
+            showCtxMenu(ev, [
+              { label: "Copier le lien", onClick: copyUrl },
+              {
+                label: "Copier titre + lien",
+                onClick: async () => {
+                  await window.liveHub.copyText(`${link.title || link.id}: ${link.url}`);
+                },
+              },
+              {
+                label: "Copier tous les liens",
+                onClick: async () => {
+                  const all = await window.liveHub.getLiveLinks();
+                  await window.liveHub.copyText(
+                    (all || []).map((l) => `${l.title}: ${l.url}`).join("\n"),
+                  );
+                },
+              },
+              { label: "Ouvrir", onClick: openLink },
+            ]);
+          };
           chip.appendChild(name);
           chip.appendChild(openBtn);
           chip.appendChild(copyBtn);
@@ -434,5 +519,6 @@
         await renderLiveLinksBar();
       })();
     </script>
+    <div id="ctxMenu" class="ctx-menu" role="menu"></div>
   </body>
 </html>
