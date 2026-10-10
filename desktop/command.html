@@ -388,8 +388,8 @@
             <input id="title" placeholder="Ex: Classement anime en live" />
           </div>
           <div>
-            <label>Jeu (recherche Twitch + Kick)</label>
-            <input id="gameQuery" placeholder="Tape un jeu… Just Chatting, Genshin Impact…" />
+            <label>Jeu / catégorie (Twitch = jeu · Kick = catégorie)</label>
+            <input id="gameQuery" placeholder="Ex: Aniimo, Genshin Impact, Just Chatting…" />
             <div class="games" id="gameResults"></div>
           </div>
         </div>
@@ -1823,13 +1823,20 @@
         const root = document.getElementById("gameResults");
         root.innerHTML = "";
         if (!results?.length) {
-          root.innerHTML = `<div class="game"><span>Aucun résultat</span></div>`;
+          root.innerHTML = `<div class="game"><span>Aucun résultat pertinent (Twitch jeu / Kick catégorie)</span></div>`;
           return;
         }
         results.forEach((g) => {
           const row = document.createElement("div");
           row.className = "game";
-          row.innerHTML = `<span>${g.name}</span><small>${g.platform} · score ${g.score ?? "-"}</small>`;
+          const kindLabel =
+            g.label ||
+            (g.platform === "kick"
+              ? "Kick · catégorie"
+              : g.platform === "twitch"
+                ? "Twitch · jeu"
+                : g.platform);
+          row.innerHTML = `<span>${g.name}</span><small>${kindLabel} · score ${g.score ?? "-"}</small>`;
           row.onclick = () => {
             selectedGame = g;
             document.getElementById("gameQuery").value = g.name;

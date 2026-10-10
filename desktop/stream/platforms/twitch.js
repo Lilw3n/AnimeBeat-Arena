@@ -54,6 +54,8 @@ async function searchGames(twitchConfig, query) {
     name: g.name,
     boxArtUrl: g.box_art_url,
     platform: "twitch",
+    kind: "game",
+    label: "Twitch · jeu",
   }));
 }
 
