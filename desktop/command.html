@@ -682,7 +682,11 @@
 
       <section>
         <h2>Social Stream Ninja (chat)</h2>
-        <p class="hint">Extension/app SSN → Remote API + Send chat to API server. Le hub charge le dock en mode Chat SSN.</p>
+        <p class="hint">
+          App SSN + Remote API (toggle Send chat to API). Le hub lance SSN avec
+          <b>--ssapp-control-api</b> pour démarrer la source <b>Instagram Live</b> (messages).
+          Si les messages IG ne viennent pas: ferme SSN, puis clique <b>Relancer chat IG</b>.
+        </p>
         <div class="row">
           <div>
             <label>Session ID</label>
@@ -693,12 +697,19 @@
             <input id="ssnDock" placeholder="https://socialstream.ninja/dock.html?session=..." />
           </div>
         </div>
+        <div class="row" style="margin-top:6px">
+          <div>
+            <label>Username IG (source SSN Instagram Live)</label>
+            <input id="ssnIgUser" data-pf="instagram.username" placeholder="Diddy_Stream" />
+          </div>
+        </div>
         <label style="display:flex;gap:8px;align-items:center;margin:8px 0">
           <input type="checkbox" id="ssnEnabled" /> Activer SSN
         </label>
         <div class="actions">
           <button class="primary" id="btnSsnConnect">Connecter SSN</button>
           <button id="btnSsnOpenDock">Ouvrir dock</button>
+          <button class="primary" id="btnSsnIgChat">Relancer chat IG (SSN)</button>
         </div>
         <p class="hint" id="ssnHint">—</p>
       </section>
@@ -1418,6 +1429,8 @@
         document.getElementById("ssnSession").value = config.socialStreamNinja?.sessionId || "";
         document.getElementById("ssnDock").value = config.socialStreamNinja?.dockUrl || "";
         document.getElementById("ssnEnabled").checked = config.socialStreamNinja?.enabled !== false;
+        const ssnIg = document.getElementById("ssnIgUser");
+        if (ssnIg) ssnIg.value = config.platforms?.instagram?.username || "Diddy_Stream";
         document.getElementById("sbHost").value = config.streamerBot?.host || "127.0.0.1";
         document.getElementById("sbPort").value = config.streamerBot?.port || 4457;
         document.getElementById("sbActionTitle").value = config.streamerBot?.actions?.setTitle || "";
@@ -2655,6 +2668,37 @@
         if (urls.dock) window.open(urls.dock, "_blank");
         else toast("SSN", "Session ID manquant", "warn");
       };
+      document.getElementById("btnSsnIgChat")?.addEventListener("click", async () => {
+        const hint = document.getElementById("ssnHint");
+        if (hint) hint.textContent = "Relance source Instagram Live dans SSN…";
+        config = collectConfigFromUi();
+        const user = document.getElementById("ssnIgUser")?.value?.trim();
+        if (user) {
+          config.platforms = config.platforms || {};
+          config.platforms.instagram = {
+            ...(config.platforms.instagram || {}),
+            username: user.replace(/^@/, ""),
+          };
+        }
+        await window.streamHub.saveConfig(config);
+        try {
+          // Relance SSN si besoin (Control API)
+          await window.streamHub.launchApp("socialstream");
+          const res = await window.streamHub.ssnEnsureInstagram({
+            username: user,
+            forceRestart: true,
+          });
+          const msg = res?.ok
+            ? `IG chat OK · ${res.source?.handle || user || "source"}`
+            : res?.reason || "échec — ferme SSN puis réessaie (flag Control API)";
+          if (hint) hint.textContent = msg;
+          toast("SSN IG", msg, res?.ok ? "info" : "warn");
+          await refreshStatus();
+        } catch (err) {
+          if (hint) hint.textContent = err?.message || "erreur";
+          toast("SSN IG", err?.message || "erreur", "warn");
+        }
+      });
       document.getElementById("btnSbConnect").onclick = async () => {
         config = collectConfigFromUi();
         await window.streamHub.saveConfig(config);

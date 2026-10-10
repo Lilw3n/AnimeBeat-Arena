@@ -137,16 +137,31 @@ function launchOne(id, config, { force = false } = {}) {
 
   try {
     const cwd = def.cwd ? def.cwd(exe) : path.dirname(exe);
-    spawn(exe, [], {
+    // SSN: active Control API locale pour démarrer/relancer Instagram Live depuis le hub
+    const args =
+      id === "socialstream"
+        ? ["--ssapp-control-api", "--ssapp-control-port=17777"]
+        : [];
+    spawn(exe, args, {
       detached: true,
       stdio: "ignore",
       cwd,
       windowsHide: id === "stunnel",
+      env: {
+        ...process.env,
+        ...(id === "socialstream"
+          ? { SSAPP_CONTROL_API: "1", SSAPP_CONTROL_PORT: "17777" }
+          : {}),
+      },
     }).unref();
     sessionLaunched.add(id);
     clearDismissed(id);
-    notify(def.label, "Démarré", "info");
-    return { ok: true, launched: true, id, exe, label: def.label };
+    notify(
+      def.label,
+      id === "socialstream" ? "Démarré (Control API :17777)" : "Démarré",
+      "info",
+    );
+    return { ok: true, launched: true, id, exe, label: def.label, args };
   } catch (err) {
     return { ok: false, reason: err.message || "Échec lancement", id };
   }

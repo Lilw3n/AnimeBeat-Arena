@@ -33,6 +33,8 @@ contextBridge.exposeInMainWorld("streamHub", {
   ssnStatus: () => ipcRenderer.invoke("stream:ssn-status"),
   ssnUrls: () => ipcRenderer.invoke("stream:ssn-urls"),
   ssnSend: (msg) => ipcRenderer.invoke("stream:ssn-send", msg),
+  ssnEnsureInstagram: (payload) =>
+    ipcRenderer.invoke("stream:ssn-ensure-instagram", payload),
   streamerbotConnect: () => ipcRenderer.invoke("stream:streamerbot-connect"),
   streamerbotStatus: () => ipcRenderer.invoke("stream:streamerbot-status"),
   streamerbotActions: () => ipcRenderer.invoke("stream:streamerbot-actions"),

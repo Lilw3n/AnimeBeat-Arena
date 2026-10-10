@@ -1,5 +1,7 @@
 const WebSocket = require("ws");
 const { notify, pushToWindows } = require("./notify");
+const companions = require("./companions");
+const ssapp = require("./ssapp-control");
 
 let ws = null;
 let lastStatus = { connected: false, message: "SSN déconnecté", sessionId: "" };
@@ -114,12 +116,79 @@ function normalizeChat(data) {
   const text = data.chatmessage || data.message || data.text || data.comment || "";
   const user = data.chatname || data.displayname || data.username || data.name || "";
   if (!text && !user) return null;
+  const platform = String(data.type || data.platform || data.source || "ssn").toLowerCase();
   return {
     user,
     text: String(text).slice(0, 500),
-    platform: data.type || data.platform || data.source || "ssn",
+    platform,
+    // alias pour filtres hub
+    isInstagram: /instagram/.test(platform),
     at: Date.now(),
   };
+}
+
+/**
+ * Lance SSN (Control API) + démarre / relance la source Instagram Live pour les messages.
+ */
+async function ensureInstagramChat(config, opts = {}) {
+  const ssn = config.socialStreamNinja || {};
+  if (ssn.enabled === false) {
+    return { ok: false, skipped: true, reason: "SSN désactivé" };
+  }
+
+  // 1) App SSN up (avec --ssapp-control-api)
+  let launch = null;
+  if (!companions.isRunning("socialstream")) {
+    launch = companions.launchOne("socialstream", config, { force: true });
+  } else {
+    // Déjà ouvert sans flag → Control API souvent absente
+    const probe = await ssapp.getStatus(config);
+    if (!probe.ok && opts.relaunchIfNoApi !== false) {
+      notify(
+        "SSN",
+        "Social Stream ouvert sans Control API — ferme-le puis le hub le relance avec le bon flag",
+        "warn",
+      );
+      // ne tue pas de force (données session) ; on tente quand même
+      launch = { ok: true, alreadyRunning: true, needRelaunchWithApi: true };
+    } else {
+      launch = { ok: true, alreadyRunning: true };
+    }
+  }
+
+  // 2) Attendre API
+  const ready = await ssapp.waitUntilReady(config, { timeoutMs: opts.timeoutMs || 40000 });
+  if (!ready.ok) {
+    // Fallback: au moins reconnecter le WS chat
+    connect(config);
+    return {
+      ok: false,
+      launch,
+      api: ready,
+      reason:
+        ready.reason ||
+        "Control API :17777 injoignable. Ferme Social Stream Ninja, puis « Lancer SSN » / Préparer IG depuis le hub.",
+      tip: "Dans SSN: source Instagram Live doit être connectée (compte loggé) pendant le direct.",
+    };
+  }
+
+  // 3) Source Instagram Live
+  const ensured = await ssapp.ensureInstagramLiveSource(config, {
+    liveUrl: opts.liveUrl,
+    username: opts.username,
+    forceRestart: opts.forceRestart !== false,
+  });
+
+  // 4) WS chat hub
+  connect(config);
+
+  if (ensured.ok) {
+    notify("SSN", `Messages Instagram Live OK (${ensured.handle || "source"})`, "info");
+  } else {
+    notify("SSN", ensured.reason || "Instagram Live non démarré dans SSN", "warn");
+  }
+
+  return { ok: Boolean(ensured.ok), launch, api: ready, source: ensured, ws: getStatus() };
 }
 
 function sendChat(config, message) {
@@ -172,4 +241,5 @@ module.exports = {
   dockUrl,
   featuredUrl,
   sendChat,
+  ensureInstagramChat,
 };

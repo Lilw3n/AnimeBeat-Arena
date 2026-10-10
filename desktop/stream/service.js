@@ -459,12 +459,25 @@ function registerStreamIpc(options = {}) {
           );
         }
 
+        // 4) Chat Instagram → Social Stream Ninja (relance source Live)
+        let ssnIg = null;
+        try {
+          ssnIg = await ssnBridge.ensureInstagramChat(loadConfig(), {
+            liveUrl: next.platforms?.instagram?.liveUrl || prepared.liveUrl,
+            username: next.platforms?.instagram?.username,
+            forceRestart: true,
+          });
+        } catch (err) {
+          ssnIg = { ok: false, reason: err.message };
+        }
+
         return {
           ok: true,
           ...prepared,
           aitumPush,
           wired,
           continued,
+          ssnIg,
           multistream: ms,
           config: publicConfig(loadConfig()),
         };
@@ -484,12 +497,37 @@ function registerStreamIpc(options = {}) {
     ],
     [
       "stream:instagram-go-live",
-      async (_e, payload) =>
-        instagram.goLive({
+      async (_e, payload) => {
+        const live = await instagram.goLive({
           waitForReady: payload?.waitForReady !== false,
           timeoutMs: payload?.timeoutMs || 180000,
           probePreview: true,
-        }),
+        });
+        let ssnIg = null;
+        try {
+          const config = loadConfig();
+          ssnIg = await ssnBridge.ensureInstagramChat(config, {
+            liveUrl: config.platforms?.instagram?.liveUrl,
+            username: config.platforms?.instagram?.username,
+            forceRestart: true,
+          });
+        } catch (err) {
+          ssnIg = { ok: false, reason: err.message };
+        }
+        return { ...live, ssnIg };
+      },
+    ],
+    [
+      "stream:ssn-ensure-instagram",
+      async (_e, payload) => {
+        const config = loadConfig();
+        return ssnBridge.ensureInstagramChat(config, {
+          liveUrl: payload?.liveUrl || config.platforms?.instagram?.liveUrl,
+          username: payload?.username || config.platforms?.instagram?.username,
+          forceRestart: payload?.forceRestart !== false,
+          relaunchIfNoApi: payload?.relaunchIfNoApi !== false,
+        });
+      },
     ],
     [
       "stream:instagram-open",

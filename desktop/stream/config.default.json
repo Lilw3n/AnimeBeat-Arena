@@ -94,8 +94,8 @@
       "preferObsVirtualCamera": true,
       "videoDeviceId": "",
       "videoDeviceLabel": "OBS Virtual Camera",
-      "username": "",
-      "profileUrl": "",
+      "username": "Diddy_Stream",
+      "profileUrl": "https://www.instagram.com/Diddy_Stream/",
       "liveUrl": "",
       "liveId": "",
       "liveAt": "",
@@ -103,7 +103,7 @@
       "linkTitle": "Site GTA 6",
       "streamKey": "",
       "rtmpUrl": "rtmps://live-upload.instagram.com:443/rtmp",
-      "note": "liveUrl se remplit après Go Live. Renseigne username pour https://instagram.com/{user}/live/"
+      "note": "username = compte live pour SSN Instagram Live. liveUrl se remplit après Go Live."
     },
     "tiktok": {
       "enabled": true,
@@ -156,7 +156,8 @@
     "featuredUrl": "",
     "chatChannel": 4,
     "useAsHubChat": true,
-    "note": "Auto-détecté depuis %AppData%/socialstream. Active Remote API + Send chat to API server dans SSN."
+    "ssappControlUrl": "http://127.0.0.1:17777",
+    "note": "Le hub lance socialstream.exe avec --ssapp-control-api. Active aussi Remote API + Send chat to API server dans SSN. Bouton Relancer chat IG = startSource Instagram Live."
   },
   "streamerBot": {
     "enabled": true,
