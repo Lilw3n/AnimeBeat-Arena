@@ -2655,11 +2655,6 @@
             "info",
           );
         });
-        window.streamHub.onEvent?.((ev) => {
-          if (ev?.type === "stream-destinations") {
-            renderDestToggles(ev.destinations);
-          }
-        });
         document.getElementById("routeHorizontal")?.addEventListener("change", () => {
           const preserve = document.getElementById("obsPreserveRestream");
           if (preserve) {
