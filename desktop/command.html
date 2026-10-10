@@ -293,19 +293,66 @@
       details { margin-top: 8px; }
       summary { cursor: pointer; color: var(--muted); font-size: 12px; }
       .platform-grid { display: grid; gap: 8px; margin-top: 8px; }
-      .platform {
+      details.platform {
         border: 1px solid var(--border);
         border-radius: 8px;
-        padding: 8px;
+        padding: 0;
         background: #0b1230;
+        margin-top: 0;
       }
-      .platform .top {
+      details.platform > .fold-body {
+        padding: 0 8px 8px;
+      }
+      details.platform > summary.top {
         display: flex;
         justify-content: space-between;
         align-items: center;
-        margin-bottom: 6px;
+        gap: 8px;
+        list-style: none;
+        cursor: pointer;
+        padding: 10px 8px;
+        margin: 0;
         font-size: 12px;
         font-weight: 600;
+        color: var(--text);
+        user-select: none;
+      }
+      details.platform > summary.top::-webkit-details-marker { display: none; }
+      details.platform > summary.top::before {
+        content: "▸";
+        color: var(--accent);
+        margin-right: 6px;
+        transition: transform 0.12s ease;
+      }
+      details.platform[open] > summary.top::before { content: "▾"; }
+      details.platform > summary.top:hover { background: rgba(130, 154, 255, 0.08); }
+      details.fold-section {
+        margin: 0;
+        border: none;
+        background: transparent;
+      }
+      details.fold-section > summary.fold-summary {
+        list-style: none;
+        cursor: pointer;
+        font-size: 1.05rem;
+        font-weight: 700;
+        color: var(--text);
+        padding: 2px 0 8px;
+        user-select: none;
+      }
+      details.fold-section > summary.fold-summary::-webkit-details-marker { display: none; }
+      details.fold-section > summary.fold-summary::before {
+        content: "▸ ";
+        color: var(--accent);
+        font-weight: 700;
+      }
+      details.fold-section[open] > summary.fold-summary::before { content: "▾ "; }
+      details.fold-section > summary.fold-summary:hover { color: var(--accent); }
+      .fold-toolbar {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+        margin: 0 0 8px;
       }
       .full { grid-column: 1 / -1; }
     </style>
@@ -820,8 +867,15 @@
         <div class="dest-list" id="sbActionsList"></div>
       </section>
 
-      <section class="full">
+      <section class="full" id="sec-platforms">
         <h2>Plateformes & clés RTMP</h2>
+        <div class="fold-toolbar">
+          <button type="button" id="btnFoldAllPlatforms">Replier les plateformes</button>
+          <button type="button" id="btnUnfoldAllPlatforms">Déplier les plateformes</button>
+          <button type="button" id="btnFoldAllSections">Replier toutes les sections</button>
+          <button type="button" id="btnUnfoldAllSections">Déplier toutes les sections</button>
+        </div>
+        <p class="hint" style="margin-top:0">Clique le titre (▸/▾) pour replier Facebook, Instagram, etc. L’état est mémorisé.</p>
         <div class="platform-grid" id="platforms"></div>
         <div class="actions">
           <button class="primary" id="btnSaveCfg">Enregistrer config</button>
@@ -878,15 +932,19 @@
 
       function platformFields(key, label, fields) {
         const p = config.platforms[key] || {};
+        const pref = localStorage.getItem(`fold:platform:${key}`);
+        const open =
+          pref === null ? Boolean(p.enabled) : pref === "1";
         return `
-          <div class="platform" data-platform="${key}">
-            <div class="top">
+          <details class="platform" data-platform="${key}" ${open ? "open" : ""}>
+            <summary class="top">
               <span>${label}</span>
-              <label style="display:flex;gap:6px;align-items:center;margin:0">
+              <label class="platform-on" style="display:flex;gap:6px;align-items:center;margin:0">
                 <input type="checkbox" data-en="${key}" ${p.enabled ? "checked" : ""} />
                 ON
               </label>
-            </div>
+            </summary>
+            <div class="fold-body">
             ${fields
               .map(
                 ([f, ph, type]) => `
@@ -980,7 +1038,8 @@
                    <p class="hint" id="fbHint">« Préparation… » = en cours (orange). Attends OK avant Go Live.</p>`
                 : ""
             }
-          </div>
+            </div>
+          </details>
         `;
       }
 
@@ -1442,6 +1501,69 @@
         }
       }
 
+      function bindPlatformFoldState() {
+        document.querySelectorAll("details.platform").forEach((d) => {
+          const key = d.dataset.platform;
+          d.querySelectorAll("summary .platform-on, summary .platform-on input").forEach((el) => {
+            el.addEventListener("click", (e) => e.stopPropagation());
+          });
+          d.addEventListener("toggle", () => {
+            if (key) localStorage.setItem(`fold:platform:${key}`, d.open ? "1" : "0");
+          });
+        });
+      }
+
+      function setAllPlatformFolds(open) {
+        document.querySelectorAll("details.platform").forEach((d) => {
+          d.open = open;
+          if (d.dataset.platform) {
+            localStorage.setItem(`fold:platform:${d.dataset.platform}`, open ? "1" : "0");
+          }
+        });
+      }
+
+      function setAllSectionFolds(open) {
+        document.querySelectorAll("details.fold-section").forEach((d) => {
+          d.open = open;
+          const id = d.closest("section")?.id || d.dataset.foldId;
+          if (id) localStorage.setItem(`fold:section:${id}`, open ? "1" : "0");
+        });
+      }
+
+      function makeSectionsFoldable() {
+        document.querySelectorAll("main > section").forEach((sec, i) => {
+          if (sec.dataset.foldReady) return;
+          const h2 = sec.querySelector(":scope > h2");
+          if (!h2) return;
+          sec.dataset.foldReady = "1";
+          const id = sec.id || `sec-auto-${i}`;
+          if (!sec.id) sec.id = id;
+          const key = `fold:section:${id}`;
+          const pref = localStorage.getItem(key);
+          // Par défaut: sections longues (FB/IG/plateformes) repliées, le reste ouvert
+          const defaultOpen = !["sec-fb-info", "sec-ig-link", "sec-platforms", "sec-updates"].includes(
+            id,
+          );
+          const details = document.createElement("details");
+          details.className = "fold-section";
+          details.dataset.foldId = id;
+          details.open = pref === null ? defaultOpen : pref === "1";
+          const summary = document.createElement("summary");
+          summary.className = "fold-summary";
+          summary.textContent = h2.textContent;
+          h2.remove();
+          const body = document.createElement("div");
+          body.className = "fold-body";
+          while (sec.firstChild) body.appendChild(sec.firstChild);
+          details.appendChild(summary);
+          details.appendChild(body);
+          sec.appendChild(details);
+          details.addEventListener("toggle", () => {
+            localStorage.setItem(key, details.open ? "1" : "0");
+          });
+        });
+      }
+
       function renderPlatforms() {
         document.getElementById("platforms").innerHTML = [
           platformFields("twitch", "Twitch", [
@@ -1483,6 +1605,7 @@
           ]),
           platformFields("tiktok", "TikTok LIVE Studio", []),
         ].join("");
+        bindPlatformFoldState();
         bindInstagramButtons();
         bindFacebookButtons();
       }
@@ -2257,6 +2380,35 @@
       }
 
       async function init() {
+        makeSectionsFoldable();
+        document.getElementById("btnFoldAllPlatforms")?.addEventListener("click", () => {
+          setAllPlatformFolds(false);
+        });
+        document.getElementById("btnUnfoldAllPlatforms")?.addEventListener("click", () => {
+          setAllPlatformFolds(true);
+        });
+        document.getElementById("btnFoldAllSections")?.addEventListener("click", () => {
+          setAllSectionFolds(false);
+          setAllPlatformFolds(false);
+        });
+        document.getElementById("btnUnfoldAllSections")?.addEventListener("click", () => {
+          setAllSectionFolds(true);
+          setAllPlatformFolds(true);
+        });
+        document.querySelectorAll(".jump-nav a[href^='#']").forEach((a) => {
+          a.addEventListener("click", () => {
+            const id = a.getAttribute("href")?.slice(1);
+            if (!id) return;
+            const sec = document.getElementById(id);
+            const fold = sec?.querySelector("details.fold-section");
+            if (fold) fold.open = true;
+            // Ancres caméra IG dans la carte plateforme
+            if (id === "sec-ig-camera" || id === "sec-ig-aitum") {
+              const ig = document.querySelector('details.platform[data-platform="instagram"]');
+              if (ig) ig.open = true;
+            }
+          });
+        });
         await showAppVersion();
         config = await window.streamHub.getConfig();
         renderPresets();
