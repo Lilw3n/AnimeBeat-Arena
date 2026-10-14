@@ -24,7 +24,7 @@ const companions = require("./companions");
 const goLivePipeline = require("./go-live-pipeline");
 const nginxRtmp = require("./nginx-rtmp");
 const autoUpdate = require("./auto-update");
-const { buildLiveLinks } = require("./live-links");
+const { buildLiveLinks, applyLiveLinkOverride } = require("./live-links");
 const { verifyLiveUpdates } = require("./verify-live-updates");
 const streamRoutes = require("./stream-routes");
 const streamDestinations = require("./stream-destinations");
@@ -157,6 +157,11 @@ function registerStreamIpc(options = {}) {
       "stream:save-config",
       async (_e, next) => {
         const saved = saveConfig(next);
+        try {
+          liveViewers.start(saved);
+        } catch {
+          /* optional */
+        }
         notify("Config", "Configuration enregistrée", "info");
         return publicConfig(saved);
       },
@@ -183,6 +188,32 @@ function registerStreamIpc(options = {}) {
       },
     ],
     ["stream:get-live-links", async () => buildLiveLinks(loadConfig())],
+    [
+      "stream:set-live-link",
+      async (_e, payload) => {
+        const config = loadConfig();
+        const result = applyLiveLinkOverride(config, {
+          id: payload?.id,
+          url: payload?.url,
+          reset: Boolean(payload?.reset),
+        });
+        if (!result.ok) return result;
+        const saved = saveConfig(result.config);
+        try {
+          liveViewers.start(saved);
+        } catch {
+          /* optional */
+        }
+        const links = buildLiveLinks(saved);
+        try {
+          const { pushToWindows } = require("./notify");
+          pushToWindows({ type: "live-links-updated", links, id: payload?.id });
+        } catch {
+          /* optional */
+        }
+        return { ok: true, links, config: publicConfig(saved) };
+      },
+    ],
     [
       "stream:routes-status",
       async () => {

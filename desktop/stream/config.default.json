@@ -110,6 +110,9 @@
     "tiktok": {
       "enabled": true,
       "mode": "external_studio",
+      "username": "lilwen54",
+      "profileUrl": "https://www.tiktok.com/@lilwen54",
+      "liveUrl": "https://www.tiktok.com/@lilwen54/live",
       "note": "Toujours via TikTok LIVE Studio en parallèle d'OBS"
     },
     "youtube": {
@@ -219,5 +222,11 @@
     "horizontal": "restream",
     "vertical": "aitum",
     "note": "UI Flux: restream|nginx (H) + aitum|nginx (V). stunnel = FB+IG Meta uniquement (19350/19351). Twitch/Kick = Restream. Source = obs.streamDestinationMode + aitumVertical.igVia."
+  },
+  "liveLinks": {
+    "overrides": {
+      "tiktok": "https://www.tiktok.com/@lilwen54"
+    },
+    "note": "URLs éditables dans Stream Command. Plateformes catalogue pré-enregistrées = non effaçables (override seulement)."
   }
 }

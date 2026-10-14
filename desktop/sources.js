@@ -1,5 +1,6 @@
 /** Shared live source catalog for the Live Hub viewer. */
 const LIVE_SOURCES = [
+  { id: "tiktok", title: "TikTok", url: "https://www.tiktok.com/@lilwen54" },
   { id: "tiktok-1", title: "TikTok 1", url: "https://www.tiktok.com/@idontlikeuspam/live" },
   { id: "tiktok-2", title: "TikTok 2", url: "https://www.tiktok.com/@kanekiakadiddy/live" },
   { id: "kick", title: "Kick", url: "https://kick.com/lilwen54" },
@@ -35,6 +36,10 @@ function defaultSourcePower() {
   return power;
 }
 
+function getDefaultSourceUrl(id) {
+  return LIVE_SOURCES.find((s) => s.id === id)?.url || "";
+}
+
 module.exports = {
   LIVE_SOURCES,
   POWER_SOURCES,
@@ -42,4 +47,5 @@ module.exports = {
   MAX_SCREENS,
   defaultSlotSourceIds,
   defaultSourcePower,
+  getDefaultSourceUrl,
 };

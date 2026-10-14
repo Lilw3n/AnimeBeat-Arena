@@ -126,6 +126,7 @@ const CHAT_DIRECT_URLS = {
 function getChatPanelHtml(mode) {
   const twitch = CHAT_DIRECT_URLS.twitch;
   const kick = CHAT_DIRECT_URLS.kick;
+  const tiktokMain = "https://www.tiktok.com/@lilwen54";
   const tiktok1 = "https://www.tiktok.com/@idontlikeuspam/live";
   const tiktok2 = "https://www.tiktok.com/@kanekiakadiddy/live";
   // Twitch/Kick refusent les iframes (ERR_BLOCKED_BY_RESPONSE) → liens seulement en mode Mix
@@ -141,7 +142,9 @@ function getChatPanelHtml(mode) {
     ${
       mode === "mix" || mode === "tiktok"
         ? `<div style="border:1px solid rgba(130,154,255,.3);border-radius:8px;padding:10px;">
-      TikTok : <a href="${tiktok1}" style="color:#9fb6ff;">Live 1</a> · <a href="${tiktok2}" style="color:#9fb6ff;">Live 2</a>
+      TikTok : <a href="${tiktokMain}" style="color:#9fb6ff;">@lilwen54</a> ·
+      <a href="${tiktok1}" style="color:#9fb6ff;">Live 1</a> ·
+      <a href="${tiktok2}" style="color:#9fb6ff;">Live 2</a>
     </div>`
         : ""
     }

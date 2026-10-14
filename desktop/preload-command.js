@@ -13,6 +13,7 @@ contextBridge.exposeInMainWorld("streamHub", {
   openConfigFile: () => ipcRenderer.invoke("stream:open-config-file"),
   openUrl: (url) => ipcRenderer.invoke("stream:open-url", url),
   getLiveLinks: () => ipcRenderer.invoke("stream:get-live-links"),
+  setLiveLink: (payload) => ipcRenderer.invoke("stream:set-live-link", payload),
   copyText: (text) => ipcRenderer.invoke("stream:copy-text", text),
   obsConnect: () => ipcRenderer.invoke("stream:obs-connect"),
   obsStatus: () => ipcRenderer.invoke("stream:obs-status"),

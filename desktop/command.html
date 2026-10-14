@@ -78,8 +78,8 @@
       }
       .live-link-row {
         display: grid;
-        grid-template-columns: 140px 1fr auto auto;
-        gap: 8px;
+        grid-template-columns: 110px minmax(0, 1fr) 18px auto auto auto;
+        gap: 6px;
         align-items: center;
         padding: 6px 8px;
         border: 1px solid var(--border);
@@ -93,6 +93,18 @@
         text-overflow: ellipsis;
         white-space: nowrap;
         color: var(--accent);
+      }
+      .live-link-row input.url-edit {
+        width: 100%;
+        min-width: 0;
+        margin: 0;
+        font-size: 12px;
+        padding: 6px 8px;
+      }
+      .live-link-row .lock {
+        font-size: 10px;
+        color: var(--muted);
+        white-space: nowrap;
       }
       .live-link-row.onair {
         border-color: rgba(248, 113, 113, 0.55);
@@ -485,9 +497,9 @@
       <section class="full" id="sec-live-links">
         <h2>Liens de chaque live</h2>
         <p class="hint">
-          Les liens <b>🔴 LIVE</b> se mettent à jour automatiquement après « Lancer un direct » FB/IG
-          (scrape Producer + Graph FB si token). Sinon = page/profil.
-          <b>Clic droit</b> sur une ligne → copier le lien / tous les liens / ouvrir.
+          Plateformes pré-enregistrées = <b>non effaçables</b>, mais tu peux <b>changer l’URL</b> puis Sauver.
+          TikTok principal : <b>@lilwen54</b>. Les liens <b>🔴 LIVE</b> FB/IG se mettent à jour après Go Live.
+          <b>Clic droit</b> → copier / ouvrir / reset URL catalogue.
         </p>
         <div class="row" style="margin-bottom:8px">
           <div>
@@ -1667,7 +1679,11 @@
             ["rtmpUrl", "RTMP URL"],
             ["streamKey", "Stream key", "password"],
           ]),
-          platformFields("tiktok", "TikTok LIVE Studio", []),
+          platformFields("tiktok", "TikTok LIVE Studio", [
+            ["username", "Pseudo TikTok (@lilwen54)"],
+            ["profileUrl", "URL profil"],
+            ["liveUrl", "URL live (/live)"],
+          ]),
         ].join("");
         bindPlatformFoldState();
         bindInstagramButtons();
@@ -2306,6 +2322,7 @@
         };
         const platforms = snap?.platforms || {};
         root.innerHTML = "";
+        const sources = [];
         for (const key of order) {
           const p = platforms[key] || {};
           const card = document.createElement("div");
@@ -2315,24 +2332,29 @@
             p.live === true ? "🔴" : p.live === false ? "⚫" : "·";
           const likes =
             typeof p.likes === "number" ? ` · ❤ ${p.likes}` : "";
+          const src = p.source ? ` (${p.source})` : "";
           card.textContent = `${live} ${labels[key] || key}: ${count}${likes}`;
+          card.title = `${labels[key] || key}${src}${p.note ? ` — ${p.note}` : ""}`;
           if (p.live === true) card.classList.add("ok");
           else if (p.live === false) card.classList.add("warn");
           root.appendChild(card);
+          if (p.source && p.count != null) sources.push(`${labels[key]}:${p.source}`);
         }
         if (hint) {
-          hint.textContent =
-            "Kick via API · TikTok/IG/FB via SSN (Show viewer count). TikTok = total public seulement, pas de viewers privés.";
+          hint.textContent = sources.length
+            ? `OK · ${sources.join(" · ")} — TikTok/IG/FB via SSN (Show viewer count)`
+            : "Kick/Twitch = API ou page publique · TikTok/IG/FB = SSN (Show viewer count / Hype Mode). Clique Rafraîchir.";
         }
       }
 
       async function refreshLiveViewers() {
-        if (!window.streamHub?.liveViewers) return;
+        if (!window.streamHub?.liveViewersRefresh) return;
         try {
           const snap = await window.streamHub.liveViewersRefresh();
           renderLiveViewers(snap);
-        } catch {
-          /* ignore */
+        } catch (err) {
+          const hint = document.getElementById("liveViewersHint");
+          if (hint) hint.textContent = err?.message || "Échec refresh viewers";
         }
       }
 
@@ -2498,6 +2520,34 @@
         while (feed.children.length > 80) feed.removeChild(feed.lastChild);
       }
 
+      async function saveLiveLinkRow(link, url, reset = false) {
+        if (!window.streamHub?.setLiveLink) {
+          toast("Lien", "Mise à jour hub requise", "warn");
+          return;
+        }
+        const res = await window.streamHub.setLiveLink({
+          id: link.id,
+          url,
+          reset: Boolean(reset),
+        });
+        if (res?.config) config = res.config;
+        await renderLiveLinks(res?.links);
+        try {
+          await refreshLiveViewers();
+        } catch {
+          /* optional */
+        }
+        toast(
+          "Lien",
+          res?.ok
+            ? reset
+              ? `URL catalogue restaurée: ${link.title || link.id}`
+              : `URL enregistrée: ${link.title || link.id}`
+            : res?.reason || "échec",
+          res?.ok ? "info" : "warn",
+        );
+      }
+
       async function renderLiveLinks(prefetched) {
         const root = document.getElementById("liveLinksList");
         if (!root || !window.streamHub?.getLiveLinks) return;
@@ -2506,25 +2556,71 @@
         (links || []).forEach((link) => {
           const row = document.createElement("div");
           row.className = `live-link-row${link.isOnAir ? " onair" : ""}`;
+          const canEdit = link.editable !== false;
           row.innerHTML = `
             <span class="name"></span>
-            <span class="url"></span>
+            ${
+              canEdit
+                ? `<input class="url-edit" type="url" spellcheck="false" />`
+                : `<span class="url"></span>`
+            }
+            <span class="lock"></span>
+            <button type="button" data-act="save">Sauver</button>
             <button type="button" data-act="copy">Copier</button>
             <button type="button" class="primary" data-act="open">Ouvrir</button>
           `;
           row.querySelector(".name").textContent = link.title || link.id;
-          row.querySelector(".url").textContent = link.url || "";
-          row.querySelector(".url").title = link.url || "";
+          const lockEl = row.querySelector(".lock");
+          if (lockEl) {
+            lockEl.textContent = link.locked ? "🔒" : "";
+            lockEl.title = link.locked
+              ? "Plateforme pré-enregistrée (non effaçable) — URL modifiable"
+              : "";
+          }
+          const input = row.querySelector(".url-edit");
+          if (input) {
+            input.value = link.url || "";
+            input.title = link.defaultUrl
+              ? `Défaut: ${link.defaultUrl}`
+              : link.url || "";
+          } else {
+            const urlEl = row.querySelector(".url");
+            if (urlEl) {
+              urlEl.textContent = link.url || "";
+              urlEl.title = link.url || "";
+            }
+          }
+          const currentUrl = () => (input ? input.value.trim() : link.url || "");
           const copyUrl = async () => {
-            await window.streamHub.copyText(link.url);
+            await window.streamHub.copyText(currentUrl());
             toast("Lien", `Copié: ${link.title}`, "info");
+          };
+          row.querySelector('[data-act="save"]').onclick = async () => {
+            await saveLiveLinkRow(link, currentUrl(), false);
           };
           row.querySelector('[data-act="copy"]').onclick = copyUrl;
           row.querySelector('[data-act="open"]').onclick = async () => {
-            await window.streamHub.openUrl(link.url);
+            const u = currentUrl();
+            if (u) await window.streamHub.openUrl(u);
           };
+          if (input) {
+            input.addEventListener("keydown", (ev) => {
+              if (ev.key === "Enter") {
+                ev.preventDefault();
+                saveLiveLinkRow(link, currentUrl(), false);
+              }
+            });
+          }
           row.oncontextmenu = (ev) => {
             showCtxMenu(ev, [
+              {
+                label: "Sauver cette URL",
+                onClick: () => saveLiveLinkRow(link, currentUrl(), false),
+              },
+              {
+                label: "Restaurer URL catalogue",
+                onClick: () => saveLiveLinkRow(link, link.defaultUrl || "", true),
+              },
               {
                 label: "Copier le lien",
                 onClick: copyUrl,
@@ -2532,7 +2628,7 @@
               {
                 label: "Copier titre + lien",
                 onClick: async () => {
-                  await window.streamHub.copyText(`${link.title || link.id}: ${link.url}`);
+                  await window.streamHub.copyText(`${link.title || link.id}: ${currentUrl()}`);
                   toast("Lien", "Titre + lien copiés", "info");
                 },
               },
@@ -2550,7 +2646,8 @@
               {
                 label: "Ouvrir le lien",
                 onClick: async () => {
-                  await window.streamHub.openUrl(link.url);
+                  const u = currentUrl();
+                  if (u) await window.streamHub.openUrl(u);
                 },
               },
             ]);
