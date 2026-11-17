@@ -87,7 +87,7 @@ function guid() {
 function makeCsharpSubAction(index = 0) {
   return {
     name: "AnimeBeat apply title/game",
-    description: "Injected by AnimeBeat Live Hub",
+    description: "Injected by Stream Lilwen54",
     references: REFERENCES,
     byteCode: Buffer.from(CSHARP_SOURCE, "utf8").toString("base64"),
     precompile: true,

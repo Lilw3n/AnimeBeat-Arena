@@ -1035,6 +1035,20 @@
                 : ""
             }
             ${
+              key === "youtubeVertical"
+                ? `<p class="hint">
+                     Flux 9:16 = <b>Aitum Vertical → Streaming</b>. Studio YouTube → vue verticale → <b>Encodeur</b> → copie la clé <b>Vertical</b>
+                     de la <b>même diffusion</b> que l’horizontal (Restream / OBS). Sans horizontal reçu, YouTube bloque le vertical.
+                     ⚠ Choisir « Encodeur » <b>avant</b> le direct (impossible pendant le live). Dans Aitum, crée une 2ᵉ ligne Streaming (slot 1).
+                   </p>
+                   <div class="row" style="margin-top:8px;gap:8px;flex-wrap:wrap">
+                     <button type="button" id="btnYtvPush">Envoyer clé → Aitum + Start Vertical</button>
+                     <button type="button" id="btnYtvPushOnly">Envoyer clé seulement</button>
+                   </div>
+                   <p class="hint" id="ytvHint"></p>`
+                : ""
+            }
+            ${
               key === "instagram"
                 ? `<p class="hint">
                      Flux IG = <b>Aitum Vertical → Streaming</b> (dock Vertical), <b>pas</b> le bouton Stream OBS classique.
@@ -1189,6 +1203,41 @@
         btn.disabled = Boolean(busy);
         btn.classList.toggle("is-busy", Boolean(busy));
         if (label) btn.textContent = label;
+      }
+
+      function bindYoutubeVerticalButtons() {
+        const run = async (start) => {
+          const hint = document.getElementById("ytvHint");
+          if (hint) hint.textContent = "Enregistrement + push clé YouTube Vertical → Aitum…";
+          try {
+            const ytv = { ...(config.platforms?.youtubeVertical || {}) };
+            const en = document.querySelector('[data-en="youtubeVertical"]');
+            if (en) ytv.enabled = en.checked;
+            document.querySelectorAll('[data-pf^="youtubeVertical."]').forEach((el) => {
+              ytv[el.getAttribute("data-pf").split(".")[1]] = el.value;
+            });
+            config.platforms = config.platforms || {};
+            config.platforms.youtubeVertical = ytv;
+            await window.streamHub.saveConfig(config);
+          } catch {
+            /* on pousse quand même la config déjà enregistrée */
+          }
+          const res = await window.streamHub.aitumPushYtVertical({ start });
+          const msg = res?.ok
+            ? `OK slot #${res.index} · ${res.streamServer} · …${res.streamKeyTail || ""}` +
+              (start
+                ? res.start?.ok
+                  ? " · Streaming Vertical ON"
+                  : ` · Start KO: ${res.start?.reason || "?"}`
+                : "")
+            : res?.reason || "échec — clé vide, OBS WebSocket ou ligne Streaming absente dans Aitum";
+          if (hint) hint.textContent = msg;
+          toast("YouTube Vertical", msg, res?.ok ? "info" : "warn");
+        };
+        const btn = document.getElementById("btnYtvPush");
+        const btnOnly = document.getElementById("btnYtvPushOnly");
+        if (btn) btn.onclick = () => run(true);
+        if (btnOnly) btnOnly.onclick = () => run(false);
       }
 
       function bindInstagramButtons() {
@@ -1670,9 +1719,14 @@
             ["rtmpUrl", "RTMP URL (auto)"],
             ["streamKey", "Stream key Live Producer (auto)", "password"],
           ]),
-          platformFields("youtube", "YouTube", [
+          platformFields("youtube", "YouTube (horizontal)", [
             ["rtmpUrl", "RTMP URL"],
             ["streamKey", "Stream key", "password"],
+          ]),
+          platformFields("youtubeVertical", "YouTube Vertical", [
+            ["rtmpUrl", "RTMP URL"],
+            ["streamKey", "Stream key « Vertical »", "password"],
+            ["aitumOutputIndex", "Slot Aitum Vertical (0 = 1re ligne, IG = 0)"],
           ]),
           platformFields("custom", "Custom RTMP", [
             ["label", "Label"],
@@ -1686,6 +1740,7 @@
           ]),
         ].join("");
         bindPlatformFoldState();
+        bindYoutubeVerticalButtons();
         bindInstagramButtons();
         bindFacebookButtons();
       }

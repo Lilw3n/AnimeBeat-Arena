@@ -1,4 +1,4 @@
-# AnimeBeat Stream Command
+# Stream Lilwen54 — Stream Command
 
 Hub local : **Social Stream Ninja** (chat) · **Streamer.bot** (titres/jeux) · **OBS dashboard** · **multistream**.
 

@@ -68,6 +68,7 @@ contextBridge.exposeInMainWorld("streamHub", {
   aitumVerticalStart: () => ipcRenderer.invoke("stream:aitum-vertical-start"),
   aitumVerticalStatus: () => ipcRenderer.invoke("stream:aitum-vertical-status"),
   aitumPushIg: () => ipcRenderer.invoke("stream:aitum-push-ig"),
+  aitumPushYtVertical: (payload) => ipcRenderer.invoke("stream:aitum-push-yt-vertical", payload),
   facebookPrepare: (payload) => ipcRenderer.invoke("stream:facebook-prepare", payload),
   facebookGoLive: (payload) => ipcRenderer.invoke("stream:facebook-go-live", payload),
   facebookOpen: () => ipcRenderer.invoke("stream:facebook-open"),

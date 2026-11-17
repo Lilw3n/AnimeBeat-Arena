@@ -12,7 +12,7 @@ function claimHubUserData() {
   if (!got) {
     console.error(
       "ABORT: une autre instance (Live Hub ou script) utilise déjà la session Instagram/Facebook.\n" +
-        "Ferme AnimeBeat Live Hub / les fenêtres Electron de test, puis relance.",
+        "Ferme Stream Lilwen54 / les fenêtres Electron de test, puis relance.",
     );
     app.exit(2);
     return false;

@@ -2,6 +2,9 @@ const { app, BrowserWindow, BrowserView, ipcMain, shell } = require("electron");
 const path = require("path");
 const fs = require("fs");
 
+// Renommé « Stream Lilwen54 » : garder l'ancien dossier userData (config, sessions IG/FB/YouTube)
+app.setPath("userData", path.join(app.getPath("appData"), "animebeat-live-hub"));
+
 // Une seule instance : plusieurs Electron = cookies IG/FB corrompus → déconnexion permanente
 const gotSingleInstanceLock = app.requestSingleInstanceLock();
 if (!gotSingleInstanceLock) {
@@ -407,7 +410,7 @@ function applyLayout() {
     .join(" ");
   const info = getAppInfo();
   mainWindow.setTitle(
-    `AnimeBeat Live Hub ${info.titleStamp} - ${activeCount} ecran(s) - ${labels}`,
+    `Stream Lilwen54 ${info.titleStamp} - ${activeCount} ecran(s) - ${labels}`,
   );
 
   if (chatVisible && chatView && actualChatW > 0) {
@@ -513,7 +516,7 @@ function createMainWindow() {
     height: 980,
     autoHideMenuBar: true,
     backgroundColor: "#070b19",
-    title: `AnimeBeat Live Hub ${info.titleStamp}`,
+    title: `Stream Lilwen54 ${info.titleStamp}`,
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
@@ -742,7 +745,7 @@ function getAppInfo() {
   // Titre: version + date/heure du code (mise à jour) + canal
   const titleStamp = `v${version} · ${codeStamp} · ${channel}`;
   cachedAppInfo = {
-    name: pkg.productName || pkg.name || "AnimeBeat Live Hub",
+    name: pkg.productName || pkg.name || "Stream Lilwen54",
     version,
     isPackaged: app.isPackaged,
     appPath: app.getAppPath(),

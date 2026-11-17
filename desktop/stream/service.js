@@ -610,6 +610,24 @@ function registerStreamIpc(options = {}) {
       },
     ],
     [
+      "stream:aitum-push-yt-vertical",
+      async (_e, payload) => {
+        const config = loadConfig();
+        const ytv = config.platforms?.youtubeVertical || {};
+        const push = await obsBridge.pushYoutubeVerticalKeyToAitum(
+          config.obs,
+          ytv,
+          config.aitumVertical || {},
+        );
+        let start = null;
+        const wantStart = payload?.start ?? ytv.autoStartStreaming !== false;
+        if (push?.ok && wantStart) {
+          start = await obsBridge.startAitumStreaming(config.obs);
+        }
+        return { ...push, start };
+      },
+    ],
+    [
       "stream:instagram-go-live",
       async (_e, payload) => {
         const live = await instagram.goLive({

@@ -314,6 +314,7 @@ async function updateAitumStreamDestination(
     index = 0,
     width = 1080,
     height = 1920,
+    label = "IG",
   } = {},
 ) {
   const server = String(streamServer || "").trim().replace(/\/$/, "");
@@ -343,7 +344,7 @@ async function updateAitumStreamDestination(
     if (ok) {
       notify(
         "Aitum Vertical",
-        `IG → slot #${idx}: ${server} · clé …${key.slice(-6)}`,
+        `${label} → slot #${idx}: ${server} · clé …${key.slice(-6)}`,
         "info",
       );
     } else {
@@ -418,6 +419,30 @@ async function pushInstagramKeyToAitum(obsConfig, igCreds = {}, aitumCfg = {}) {
     index: aitumCfg.instagramOutputIndex ?? aitumCfg.outputIndex ?? 0,
     width: aitumCfg.width ?? 1080,
     height: aitumCfg.height ?? 1920,
+  });
+}
+
+/**
+ * Pousse la clé YouTube « Vertical » dans un slot Aitum Vertical (≠ slot IG).
+ * YouTube exige que l'horizontal de la MÊME diffusion soit aussi reçu.
+ */
+async function pushYoutubeVerticalKeyToAitum(obsConfig, ytv = {}, aitumCfg = {}) {
+  const key = String(ytv.streamKey || "").trim();
+  if (!key) {
+    return { ok: false, reason: "pas de clé YouTube Vertical (Studio → Encodeur → clé Vertical)" };
+  }
+  const server = String(ytv.rtmpUrl || "rtmp://a.rtmp.youtube.com/live2")
+    .trim()
+    .replace(/\/$/, "");
+  const rawIdx = ytv.aitumOutputIndex;
+  const index = rawIdx === undefined || rawIdx === null || rawIdx === "" ? 1 : Number(rawIdx);
+  return updateAitumStreamDestination(obsConfig, {
+    streamServer: server,
+    streamKey: key,
+    index,
+    width: aitumCfg.width ?? 1080,
+    height: aitumCfg.height ?? 1920,
+    label: "YouTube Vertical",
   });
 }
 
@@ -529,6 +554,7 @@ module.exports = {
   stopAitumVerticalVirtualCam,
   updateAitumStreamDestination,
   pushInstagramKeyToAitum,
+  pushYoutubeVerticalKeyToAitum,
   startAitumStreaming,
   stopAitumStreaming,
   callAitumVendor,

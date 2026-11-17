@@ -1,5 +1,5 @@
 /**
- * Mises à jour auto AnimeBeat Live Hub (Windows NSIS + feed local sur le PC).
+ * Mises à jour auto Stream Lilwen54 (Windows NSIS + feed local sur le PC).
  *
  * - App installée: electron-updater lit latest.yml depuis un dossier local (HTTP éphémère)
  *   ou une URL (GitHub / serveur).

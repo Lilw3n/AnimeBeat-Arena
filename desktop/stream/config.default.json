@@ -120,6 +120,14 @@
       "streamKey": "",
       "rtmpUrl": "rtmp://a.rtmp.youtube.com/live2"
     },
+    "youtubeVertical": {
+      "enabled": false,
+      "streamKey": "",
+      "rtmpUrl": "rtmp://a.rtmp.youtube.com/live2",
+      "aitumOutputIndex": 1,
+      "autoStartStreaming": true,
+      "note": "Clé « Vertical » de la MÊME diffusion YouTube que l'horizontal (Studio → Encodeur → clé Vertical). Envoyée dans Aitum Vertical (slot aitumOutputIndex, 0 = 1re ligne). IG utilise le slot 0."
+    },
     "custom": {
       "enabled": false,
       "label": "Custom RTMP",

@@ -42,7 +42,7 @@ if (bump) {
   fs.writeFileSync(pkgPath, `${JSON.stringify(pkg, null, 2)}\n`, "utf8");
 }
 
-console.log(`Build AnimeBeat Live Hub v${pkg.version}…`);
+console.log(`Build Stream Lilwen54 v${pkg.version}…`);
 const r = spawnSync(
   process.platform === "win32" ? "npx.cmd" : "npx",
   ["electron-builder", "--win", "nsis", "--publish", "never"],
