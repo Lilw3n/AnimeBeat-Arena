@@ -28,6 +28,7 @@ const { buildLiveLinks, applyLiveLinkOverride } = require("./live-links");
 const { verifyLiveUpdates } = require("./verify-live-updates");
 const streamRoutes = require("./stream-routes");
 const streamDestinations = require("./stream-destinations");
+const aitumConfig = require("./aitum-config");
 const { notify } = require("./notify");
 
 /**
@@ -607,6 +608,17 @@ function registerStreamIpc(options = {}) {
           { rtmpUrl: ig.rtmpUrl, streamKey: ig.streamKey },
           config.aitumVertical || {},
         );
+      },
+    ],
+    ["stream:aitum-config-get", async () => aitumConfig.getState()],
+    ["stream:aitum-config-save", async (_e, changes) => aitumConfig.save(changes || {})],
+    ["stream:aitum-config-cancel", async () => aitumConfig.cancelPending()],
+    [
+      "stream:aitum-config-open",
+      async () => {
+        const file = aitumConfig.getAitumPath();
+        shell.showItemInFolder(file);
+        return { ok: true, file };
       },
     ],
     [

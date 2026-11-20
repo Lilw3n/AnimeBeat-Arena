@@ -943,6 +943,27 @@
         <div class="dest-list" id="sbActionsList"></div>
       </section>
 
+      <section class="full" id="sec-aitum-canvas">
+        <h2>Canvas Aitum (OBS)</h2>
+        <p class="hint" style="margin-top:0">
+          Résolution des canvas et encodeur de chaque sortie Aitum Stream Suite.
+          OBS réécrit sa config en quittant : si OBS est ouvert, la modif est <b>mise en attente</b>
+          et s'applique toute seule dès que tu fermes OBS (sauvegarde automatique avant chaque écriture).
+          Sur le canvas <b>Main</b>, choisis <b>Encodeur perso</b> — sinon la sortie exige « Commencer le streaming » d'OBS.
+        </p>
+        <div class="actions" style="margin-bottom:8px">
+          <button type="button" id="btnAitumCfgRefresh">Recharger</button>
+          <button type="button" class="primary" id="btnAitumCfgSave">Enregistrer dans OBS</button>
+          <button type="button" id="btnAitumCfgCancel">Annuler l'attente</button>
+          <button type="button" id="btnAitumCfgOpen">Ouvrir le dossier</button>
+        </div>
+        <p class="hint" id="aitumCfgHint">—</p>
+        <h3 style="margin:10px 0 6px;font-size:1rem">Canvas</h3>
+        <div id="aitumCanvasList"></div>
+        <h3 style="margin:14px 0 6px;font-size:1rem">Sorties stream</h3>
+        <div id="aitumOutputList"></div>
+      </section>
+
       <section class="full" id="sec-platforms">
         <h2>Plateformes & clés RTMP</h2>
         <div class="fold-toolbar">
@@ -1203,6 +1224,152 @@
         btn.disabled = Boolean(busy);
         btn.classList.toggle("is-busy", Boolean(busy));
         if (label) btn.textContent = label;
+      }
+
+      let aitumState = null;
+      const AITUM_PRESETS = [
+        ["1920x1080", "1920 × 1080 (16:9)"],
+        ["1280x720", "1280 × 720 (16:9)"],
+        ["1080x1920", "1080 × 1920 (9:16 vertical)"],
+        ["720x1280", "720 × 1280 (9:16 vertical)"],
+        ["1080x1080", "1080 × 1080 (carré)"],
+        ["custom", "Personnalisée…"],
+      ];
+      function escAttr(v) {
+        return String(v ?? "").replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
+      }
+      function renderAitumConfig(st) {
+        aitumState = st;
+        const hint = document.getElementById("aitumCfgHint");
+        const cl = document.getElementById("aitumCanvasList");
+        const ol = document.getElementById("aitumOutputList");
+        if (!cl || !ol) return;
+        if (!st?.ok) {
+          if (hint) hint.textContent = st?.reason || "Config Aitum illisible";
+          cl.innerHTML = ol.innerHTML = "";
+          return;
+        }
+        if (hint) {
+          hint.textContent =
+            (st.obsRunning ? "OBS ouvert — l'enregistrement sera appliqué à la fermeture d'OBS. " : "OBS fermé — écriture directe. ") +
+            (st.pending ? "⏳ Modif en attente de fermeture d'OBS." : "");
+        }
+        cl.innerHTML = st.canvases
+          .map((c) => {
+            if (c.main) {
+              return `<div class="row" style="align-items:center;gap:8px;margin-bottom:6px"><b>Main</b><span class="hint">${escAttr(c.note)}</span></div>`;
+            }
+            const cur = c.width && c.height ? `${c.width}x${c.height}` : "";
+            const known = AITUM_PRESETS.some(([v]) => v === cur);
+            const opts = AITUM_PRESETS.map(
+              ([v, l]) => `<option value="${v}" ${(known ? v === cur : v === "custom") ? "selected" : ""}>${l}</option>`,
+            ).join("");
+            return `<div class="row" data-canvas="${escAttr(c.name)}" style="align-items:center;gap:8px;margin-bottom:6px">
+                <b style="min-width:140px">${escAttr(c.name)}</b>
+                <select data-cv-preset>${opts}</select>
+                <input data-cv-w type="number" min="128" max="7680" value="${escAttr(c.width ?? "")}" style="width:90px" ${known ? "disabled" : ""} />
+                ×
+                <input data-cv-h type="number" min="128" max="7680" value="${escAttr(c.height ?? "")}" style="width:90px" ${known ? "disabled" : ""} />
+                ${c.managed ? "" : '<span class="hint">(géré par un autre plugin)</span>'}
+              </div>`;
+          })
+          .join("");
+        cl.querySelectorAll("[data-canvas]").forEach((row) => {
+          const sel = row.querySelector("[data-cv-preset]");
+          const w = row.querySelector("[data-cv-w]");
+          const h = row.querySelector("[data-cv-h]");
+          sel.onchange = () => {
+            const custom = sel.value === "custom";
+            w.disabled = h.disabled = !custom;
+            if (!custom) [w.value, h.value] = sel.value.split("x");
+          };
+        });
+        const canvasOpts = (sel) =>
+          st.canvases.map((c) => `<option value="${escAttr(c.name)}" ${c.name === sel ? "selected" : ""}>${escAttr(c.name)}</option>`).join("");
+        const encOpts = (sel) =>
+          st.encoders.map((e) => `<option value="${e.id}" ${e.id === sel ? "selected" : ""}>${e.label}</option>`).join("");
+        const streams = st.outputs.filter((o) => o.type === "stream");
+        ol.innerHTML = streams.length
+          ? streams
+              .map(
+                (o) => `<div class="cam-box" data-out="${o.index}" data-out-name="${escAttr(o.name)}" style="margin-bottom:8px">
+                <div class="cam-title">${escAttr(o.name)} <span class="hint">${escAttr(o.server)} · ${o.hasKey ? "clé ✓" : "pas de clé"}</span></div>
+                <div class="row" style="gap:8px;flex-wrap:wrap;align-items:end">
+                  <div><label>Canvas</label><select data-o-canvas>${canvasOpts(o.canvas)}</select></div>
+                  <div><label>Encodeur</label><select data-o-mode>
+                    <option value="default" ${o.encoderMode !== "custom" ? "selected" : ""}>Par défaut du canvas</option>
+                    <option value="custom" ${o.encoderMode === "custom" ? "selected" : ""}>Encodeur perso</option>
+                  </select></div>
+                  <div data-o-custom><label>Type</label><select data-o-enc>${encOpts(o.encoder || "obs_nvenc_h264_tex")}</select></div>
+                  <div data-o-custom><label>Débit vidéo (kbps)</label><input data-o-bitrate type="number" min="500" max="50000" value="${escAttr(o.bitrate ?? 6500)}" style="width:100px" /></div>
+                  <div data-o-custom><label>Preset</label><select data-o-preset>${["p1", "p2", "p3", "p4", "p5", "p6", "p7"]
+                    .map((p) => `<option ${p === (o.preset || "p5") ? "selected" : ""}>${p}</option>`)
+                    .join("")}</select></div>
+                  <div data-o-custom><label>Image clé (s)</label><input data-o-keyint type="number" min="1" max="10" value="${escAttr(o.keyint ?? 2)}" style="width:70px" /></div>
+                  <div><label>Audio (kbps)</label><input data-o-abitrate type="number" min="64" max="320" value="${escAttr(o.audioBitrate ?? 160)}" style="width:80px" /></div>
+                </div>
+                <p class="hint" data-o-warn></p>
+              </div>`,
+              )
+              .join("")
+          : '<p class="hint">Aucune sortie stream dans Aitum.</p>';
+        ol.querySelectorAll("[data-out]").forEach((box) => {
+          const sync = () => {
+            const custom = box.querySelector("[data-o-mode]").value === "custom";
+            box.querySelectorAll("[data-o-custom]").forEach((el) => (el.style.display = custom ? "" : "none"));
+            const onMain = box.querySelector("[data-o-canvas]").value === "Main";
+            box.querySelector("[data-o-warn]").textContent =
+              !custom && onMain ? "⚠ Canvas Main + encodeur par défaut = démarre seulement si « Commencer le streaming » d'OBS tourne." : "";
+          };
+          box.querySelector("[data-o-mode]").onchange = sync;
+          box.querySelector("[data-o-canvas]").onchange = sync;
+          sync();
+        });
+      }
+      function collectAitumChanges() {
+        const canvases = [...document.querySelectorAll("#aitumCanvasList [data-canvas]")].map((row) => ({
+          name: row.getAttribute("data-canvas"),
+          width: Number(row.querySelector("[data-cv-w]").value),
+          height: Number(row.querySelector("[data-cv-h]").value),
+        }));
+        const outputs = [...document.querySelectorAll("#aitumOutputList [data-out]")].map((box) => ({
+          index: Number(box.getAttribute("data-out")),
+          name: box.getAttribute("data-out-name"),
+          canvas: box.querySelector("[data-o-canvas]").value,
+          encoderMode: box.querySelector("[data-o-mode]").value,
+          encoder: box.querySelector("[data-o-enc]").value,
+          bitrate: Number(box.querySelector("[data-o-bitrate]").value),
+          preset: box.querySelector("[data-o-preset]").value,
+          keyint: Number(box.querySelector("[data-o-keyint]").value),
+          audioBitrate: Number(box.querySelector("[data-o-abitrate]").value),
+        }));
+        return { canvases, outputs };
+      }
+      async function refreshAitumConfig() {
+        if (!window.streamHub?.aitumConfigGet) return;
+        renderAitumConfig(await window.streamHub.aitumConfigGet());
+      }
+      function bindAitumConfig() {
+        document.getElementById("btnAitumCfgRefresh")?.addEventListener("click", refreshAitumConfig);
+        document.getElementById("btnAitumCfgOpen")?.addEventListener("click", () => window.streamHub.aitumConfigOpen());
+        document.getElementById("btnAitumCfgCancel")?.addEventListener("click", async () => {
+          await window.streamHub.aitumConfigCancel();
+          toast("Canvas Aitum", "Attente annulée", "info");
+          refreshAitumConfig();
+        });
+        document.getElementById("btnAitumCfgSave")?.addEventListener("click", async () => {
+          const res = await window.streamHub.aitumConfigSave(collectAitumChanges());
+          const msg = res?.applied
+            ? `Écrit dans OBS: ${(res.log || []).join(" · ") || "rien à changer"}. Relance OBS.`
+            : res?.pending
+              ? "⏳ OBS est ouvert : ferme-le (Fichier → Quitter), la modif s'appliquera toute seule."
+              : res?.reason || "échec";
+          const warn = res?.mainWarn?.length ? ` ⚠ ${res.mainWarn.join(", ")} : canvas Main sans encodeur perso.` : "";
+          toast("Canvas Aitum", msg + warn, res?.ok ? "info" : "warn");
+          const hint = document.getElementById("aitumCfgHint");
+          if (hint) hint.textContent = msg + warn;
+        });
+        refreshAitumConfig();
       }
 
       function bindYoutubeVerticalButtons() {
@@ -2757,6 +2924,7 @@
 
       async function init() {
         makeSectionsFoldable();
+        bindAitumConfig();
         document.getElementById("btnRoutesApply")?.addEventListener("click", async () => {
           const horizontal = document.getElementById("routeHorizontal")?.value || "restream";
           const vertical = document.getElementById("routeVertical")?.value || "aitum";
@@ -2901,6 +3069,9 @@
           }
           if (ev.type === "stream-destinations") {
             renderDestToggles(ev.destinations);
+          }
+          if (ev.type === "aitum-config-applied") {
+            refreshAitumConfig();
           }
           if (ev.type === "ssn-chat" && ev.chat) {
             appendChatRow(ev.chat);
