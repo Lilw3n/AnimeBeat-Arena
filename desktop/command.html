@@ -951,6 +951,19 @@
           et s'applique toute seule dès que tu fermes OBS (sauvegarde automatique avant chaque écriture).
           Sur le canvas <b>Main</b>, choisis <b>Encodeur perso</b> — sinon la sortie exige « Commencer le streaming » d'OBS.
         </p>
+        <h3 style="margin:6px 0 6px;font-size:1rem">Lancer les sorties (cases à cocher)</h3>
+        <p class="hint" style="margin-top:0">
+          Coche les sorties à démarrer ensemble. « Lancer la sélection » les démarre <b>une par une</b>
+          (attend la connexion) — pas de double clic, donc pas de crash. Fonctionne OBS ouvert.
+        </p>
+        <div class="actions" style="margin-bottom:6px">
+          <button type="button" class="primary" id="btnAitumLaunchStart">▶ Lancer la sélection</button>
+          <button type="button" class="danger" id="btnAitumLaunchStop">■ Arrêter la sélection</button>
+          <button type="button" id="btnAitumLaunchRefresh">Rafraîchir l'état</button>
+        </div>
+        <div id="aitumLaunchList"></div>
+        <p class="hint" id="aitumLaunchHint">—</p>
+        <h3 style="margin:14px 0 6px;font-size:1rem">Réglages canvas / encodeurs</h3>
         <div class="actions" style="margin-bottom:8px">
           <button type="button" id="btnAitumCfgRefresh">Recharger</button>
           <button type="button" class="primary" id="btnAitumCfgSave">Enregistrer dans OBS</button>
@@ -1349,7 +1362,70 @@
         if (!window.streamHub?.aitumConfigGet) return;
         renderAitumConfig(await window.streamHub.aitumConfigGet());
       }
+      function renderAitumLaunch(st) {
+        const list = document.getElementById("aitumLaunchList");
+        const hint = document.getElementById("aitumLaunchHint");
+        if (!list) return;
+        if (hint) hint.textContent = st?.ok ? `${(st.outputs || []).filter((o) => o.active).length} sortie(s) active(s)` : st?.reason || "—";
+        const outs = st?.outputs || [];
+        list.innerHTML = outs.length
+          ? outs
+              .map(
+                (o) => `<label class="row" style="align-items:center;gap:10px;margin:4px 0;cursor:pointer">
+                  <input type="checkbox" data-launch="${escAttr(o.name)}" ${o.selected ? "checked" : ""} />
+                  <span style="min-width:200px"><b>${escAttr(o.name)}</b> <span class="hint">${escAttr(o.type)}</span></span>
+                  <span style="color:${o.active ? "#22c55e" : o.reconnecting ? "#f59e0b" : "#64748b"}">● ${
+                    o.active ? (o.reconnecting ? "reconnexion" : "en direct") : "arrêtée"
+                  }</span>
+                  <button type="button" data-launch-one="${escAttr(o.name)}" data-start="${o.active ? "0" : "1"}">${o.active ? "Arrêter" : "Lancer"}</button>
+                </label>`,
+              )
+              .join("")
+          : '<p class="hint">Aucune sortie (OBS fermé ?)</p>';
+        list.querySelectorAll("[data-launch]").forEach((cb) => {
+          cb.onchange = async () => {
+            const names = [...list.querySelectorAll("[data-launch]:checked")].map((x) => x.getAttribute("data-launch"));
+            await window.streamHub.aitumLaunchSelect(names);
+          };
+        });
+        list.querySelectorAll("[data-launch-one]").forEach((btn) => {
+          btn.onclick = async (e) => {
+            e.preventDefault();
+            btn.disabled = true;
+            btn.textContent = "…";
+            const res = await window.streamHub.aitumLaunchToggle(btn.getAttribute("data-launch-one"), btn.getAttribute("data-start") === "1");
+            if (!res?.ok) toast("Sorties Aitum", res?.reason || "échec", "warn");
+            renderAitumLaunch(res);
+          };
+        });
+      }
+      async function refreshAitumLaunch() {
+        if (!window.streamHub?.aitumLaunchList) return;
+        renderAitumLaunch(await window.streamHub.aitumLaunchList());
+      }
+
       function bindAitumConfig() {
+        const lStart = document.getElementById("btnAitumLaunchStart");
+        const lStop = document.getElementById("btnAitumLaunchStop");
+        document.getElementById("btnAitumLaunchRefresh")?.addEventListener("click", refreshAitumLaunch);
+        lStart?.addEventListener("click", async () => {
+          lStart.disabled = true;
+          const hint = document.getElementById("aitumLaunchHint");
+          if (hint) hint.textContent = "Lancement une par une…";
+          const res = await window.streamHub.aitumLaunchStart();
+          lStart.disabled = false;
+          renderAitumLaunch(res);
+          const msg = (res?.results || [])
+            .map((r) => `${r.name}: ${r.ok ? (r.already ? "déjà active" : "OK") : r.reason}`)
+            .join(" · ") || res?.reason || "—";
+          if (hint) hint.textContent = msg;
+          toast("Sorties Aitum", msg, res?.ok ? "info" : "warn");
+        });
+        lStop?.addEventListener("click", async () => {
+          const res = await window.streamHub.aitumLaunchStop();
+          renderAitumLaunch(res);
+        });
+        refreshAitumLaunch();
         document.getElementById("btnAitumCfgRefresh")?.addEventListener("click", refreshAitumConfig);
         document.getElementById("btnAitumCfgOpen")?.addEventListener("click", () => window.streamHub.aitumConfigOpen());
         document.getElementById("btnAitumCfgCancel")?.addEventListener("click", async () => {

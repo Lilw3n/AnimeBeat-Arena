@@ -29,6 +29,7 @@ const { verifyLiveUpdates } = require("./verify-live-updates");
 const streamRoutes = require("./stream-routes");
 const streamDestinations = require("./stream-destinations");
 const aitumConfig = require("./aitum-config");
+const aitumLaunch = require("./aitum-launch");
 const { notify } = require("./notify");
 
 /**
@@ -611,6 +612,11 @@ function registerStreamIpc(options = {}) {
       },
     ],
     ["stream:aitum-config-get", async () => aitumConfig.getState()],
+    ["stream:aitum-launch-list", async () => aitumLaunch.listOutputs()],
+    ["stream:aitum-launch-select", async (_e, names) => aitumLaunch.setSelected(names || [])],
+    ["stream:aitum-launch-start", async () => aitumLaunch.startSelected()],
+    ["stream:aitum-launch-stop", async () => aitumLaunch.stopSelected()],
+    ["stream:aitum-launch-toggle", async (_e, p) => aitumLaunch.toggleOne(p?.name, Boolean(p?.start))],
     ["stream:aitum-config-save", async (_e, changes) => aitumConfig.save(changes || {})],
     ["stream:aitum-config-cancel", async () => aitumConfig.cancelPending()],
     [

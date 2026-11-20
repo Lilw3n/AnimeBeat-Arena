@@ -31,8 +31,16 @@ async function connect(obsConfig) {
       client.on("ConnectionError", () => setStatus(false, "Erreur connexion OBS"));
     }
 
-    const url = `ws://${obsConfig.host || "127.0.0.1"}:${obsConfig.port || 4455}`;
-    await client.connect(url, obsConfig.password || undefined);
+    const host = obsConfig.host || "127.0.0.1";
+    const port = obsConfig.port || 4455;
+    try {
+      await client.connect(`ws://${host}:${port}`, obsConfig.password || undefined);
+    } catch (err) {
+      // Streamer.bot peut écouter sur 127.0.0.1:<même port> (IPv4) et intercepter la connexion
+      // (« Server sent no subprotocol ») → OBS reste joignable en IPv6 loopback.
+      if (host !== "127.0.0.1" && host !== "localhost") throw err;
+      await client.connect(`ws://[::1]:${port}`, obsConfig.password || undefined);
+    }
     setStatus(true, "OBS connecté");
     notify("OBS", "Connecté via WebSocket", "info");
   } catch (err) {
@@ -227,6 +235,17 @@ async function callAitumVendor(obsConfig, requestType, requestData = {}) {
   const obs = await ensureConnected(obsConfig);
   const res = await obs.call("CallVendorRequest", {
     vendorName: AITUM_VENDOR,
+    requestType,
+    requestData: requestData || {},
+  });
+  return res?.responseData || res || {};
+}
+
+/** Appel vendor WebSocket générique (ex. "aitum-stream-suite"). */
+async function callVendor(obsConfig, vendorName, requestType, requestData = {}) {
+  const obs = await ensureConnected(obsConfig);
+  const res = await obs.call("CallVendorRequest", {
+    vendorName,
     requestType,
     requestData: requestData || {},
   });
@@ -558,5 +577,6 @@ module.exports = {
   startAitumStreaming,
   stopAitumStreaming,
   callAitumVendor,
+  callVendor,
   AITUM_VENDOR,
 };
