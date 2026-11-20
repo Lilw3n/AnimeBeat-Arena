@@ -384,6 +384,15 @@
       .dest-toggle .dest-meta { color: var(--muted); font-size: 11px; }
       .dest-toggle button { width: 100%; margin-top: 4px; }
       .full { grid-column: 1 / -1; }
+      .ag-group { border: 1px solid rgba(148,163,184,.25); border-radius: 10px; margin: 8px 0; background: rgba(15,23,42,.35); }
+      .ag-group.drop { outline: 2px dashed #14b8ff; }
+      .ag-head { display: flex; align-items: center; gap: 8px; padding: 6px 10px; cursor: grab; user-select: none; }
+      .ag-head .ag-name { font-weight: 700; flex: 1; }
+      .ag-head button { padding: 2px 8px; }
+      .ag-body { padding: 2px 10px 8px; min-height: 26px; }
+      .ag-item { display: flex; align-items: center; gap: 10px; margin: 3px 0; padding: 3px 6px; border-radius: 6px; }
+      .ag-item.dragging, .ag-group.dragging { opacity: .45; }
+      .ag-grip { cursor: grab; color: #64748b; }
     </style>
   </head>
   <body>
@@ -960,7 +969,13 @@
           <button type="button" class="primary" id="btnAitumLaunchStart">▶ Lancer la sélection</button>
           <button type="button" class="danger" id="btnAitumLaunchStop">■ Arrêter la sélection</button>
           <button type="button" id="btnAitumLaunchRefresh">Rafraîchir l'état</button>
+          <input id="aitumGroupNewName" placeholder="Nom du nouveau groupe" style="width:190px" />
+          <button type="button" id="btnAitumGroupAdd">+ Nouveau groupe</button>
         </div>
+        <p class="hint" style="margin:0 0 6px">
+          Groupes : glisse une sortie (⠿) vers un autre groupe, glisse un groupe par son titre pour le déplacer
+          <b>en entier</b>. ▶/■ sur un groupe lance/arrête tout le lot. Double-clic sur le nom pour renommer (Entrée pour valider).
+        </p>
         <div id="aitumLaunchList"></div>
         <p class="hint" id="aitumLaunchHint">—</p>
         <h3 style="margin:14px 0 6px;font-size:1rem">Réglages canvas / encodeurs</h3>
@@ -1362,40 +1377,195 @@
         if (!window.streamHub?.aitumConfigGet) return;
         renderAitumConfig(await window.streamHub.aitumConfigGet());
       }
+      let aitumLaunchState = null;
+      async function saveAitumGroups() {
+        if (!aitumLaunchState?.groups) return;
+        await window.streamHub.aitumLaunchGroups(aitumLaunchState.groups);
+      }
       function renderAitumLaunch(st) {
+        if (st?.groups) aitumLaunchState = st;
+        st = aitumLaunchState || st;
         const list = document.getElementById("aitumLaunchList");
         const hint = document.getElementById("aitumLaunchHint");
         if (!list) return;
         if (hint) hint.textContent = st?.ok ? `${(st.outputs || []).filter((o) => o.active).length} sortie(s) active(s)` : st?.reason || "—";
-        const outs = st?.outputs || [];
-        list.innerHTML = outs.length
-          ? outs
-              .map(
-                (o) => `<label class="row" style="align-items:center;gap:10px;margin:4px 0;cursor:pointer">
-                  <input type="checkbox" data-launch="${escAttr(o.name)}" ${o.selected ? "checked" : ""} />
-                  <span style="min-width:200px"><b>${escAttr(o.name)}</b> <span class="hint">${escAttr(o.type)}</span></span>
-                  <span style="color:${o.active ? "#22c55e" : o.reconnecting ? "#f59e0b" : "#64748b"}">● ${
-                    o.active ? (o.reconnecting ? "reconnexion" : "en direct") : "arrêtée"
-                  }</span>
-                  <button type="button" data-launch-one="${escAttr(o.name)}" data-start="${o.active ? "0" : "1"}">${o.active ? "Arrêter" : "Lancer"}</button>
-                </label>`,
-              )
+        const byName = Object.fromEntries((st?.outputs || []).map((o) => [o.name, o]));
+        const groups = st?.groups || [];
+        const dot = (o) =>
+          `<span style="color:${o?.active ? (o.reconnecting ? "#f59e0b" : "#22c55e") : "#64748b"}">● ${
+            o?.active ? (o.reconnecting ? "reconnexion" : "en direct") : "arrêtée"
+          }</span>`;
+        list.innerHTML = groups.length
+          ? groups
+              .map((g, gi) => {
+                const outs = g.items.map((n) => byName[n] || { name: n });
+                const live = outs.filter((o) => o.active).length;
+                const allChecked = outs.length && outs.every((o) => o.selected);
+                return `<div class="ag-group" data-g="${gi}">
+                  <div class="ag-head" draggable="true" data-ghead="${gi}">
+                    <span class="ag-grip">⠿</span>
+                    <input type="checkbox" data-gcheck="${gi}" ${allChecked ? "checked" : ""} title="Cocher tout le groupe" />
+                    <span class="ag-name" data-gname="${gi}" title="Double-clic pour renommer">${escAttr(g.name)}</span>
+                    <span class="hint">${live}/${outs.length} en direct</span>
+                    <button type="button" data-gstart="${gi}" title="Lancer tout le groupe">▶</button>
+                    <button type="button" data-gstop="${gi}" title="Arrêter tout le groupe">■</button>
+                    <button type="button" data-gfold="${gi}">${g.collapsed ? "▸" : "▾"}</button>
+                    <button type="button" data-gdel="${gi}" title="Supprimer le groupe (les sorties vont dans « Sans groupe »)">✕</button>
+                  </div>
+                  <div class="ag-body" data-gbody="${gi}" style="${g.collapsed ? "display:none" : ""}">
+                    ${
+                      outs.length
+                        ? outs
+                            .map(
+                              (o) => `<div class="ag-item" draggable="true" data-item="${escAttr(o.name)}">
+                          <span class="ag-grip">⠿</span>
+                          <input type="checkbox" data-launch="${escAttr(o.name)}" ${o.selected ? "checked" : ""} />
+                          <span style="min-width:190px"><b>${escAttr(o.name)}</b> <span class="hint">${escAttr(o.type || "")}${o.canvas ? " · " + escAttr(o.canvas) : ""}</span></span>
+                          ${dot(o)}
+                          <button type="button" data-launch-one="${escAttr(o.name)}" data-start="${o.active ? "0" : "1"}">${o.active ? "Arrêter" : "Lancer"}</button>
+                        </div>`,
+                            )
+                            .join("")
+                        : '<p class="hint" style="margin:4px 0">Glisse des sorties ici</p>'
+                    }
+                  </div>
+                </div>`;
+              })
               .join("")
           : '<p class="hint">Aucune sortie (OBS fermé ?)</p>';
-        list.querySelectorAll("[data-launch]").forEach((cb) => {
+
+        const saveSel = async () => {
+          const names = [...list.querySelectorAll("[data-launch]:checked")].map((x) => x.getAttribute("data-launch"));
+          (st.outputs || []).forEach((o) => (o.selected = names.includes(o.name)));
+          await window.streamHub.aitumLaunchSelect(names);
+        };
+        list.querySelectorAll("[data-launch]").forEach((cb) => (cb.onchange = saveSel));
+        list.querySelectorAll("[data-gcheck]").forEach((cb) => {
           cb.onchange = async () => {
-            const names = [...list.querySelectorAll("[data-launch]:checked")].map((x) => x.getAttribute("data-launch"));
-            await window.streamHub.aitumLaunchSelect(names);
+            const g = groups[Number(cb.getAttribute("data-gcheck"))];
+            list.querySelectorAll(`[data-gbody="${cb.getAttribute("data-gcheck")}"] [data-launch]`).forEach((x) => (x.checked = cb.checked));
+            await saveSel();
+            renderAitumLaunch();
           };
         });
         list.querySelectorAll("[data-launch-one]").forEach((btn) => {
-          btn.onclick = async (e) => {
-            e.preventDefault();
+          btn.onclick = async () => {
             btn.disabled = true;
             btn.textContent = "…";
             const res = await window.streamHub.aitumLaunchToggle(btn.getAttribute("data-launch-one"), btn.getAttribute("data-start") === "1");
             if (!res?.ok) toast("Sorties Aitum", res?.reason || "échec", "warn");
             renderAitumLaunch(res);
+          };
+        });
+        const groupAction = async (gi, start) => {
+          await saveAitumGroups();
+          const g = groups[gi];
+          if (hint) hint.textContent = `${start ? "Lancement" : "Arrêt"} du groupe ${g.name}…`;
+          const res = start ? await window.streamHub.aitumLaunchGroupStart(g.name) : await window.streamHub.aitumLaunchGroupStop(g.name);
+          renderAitumLaunch(res);
+          const msg = (res?.results || []).map((r) => `${r.name}: ${r.ok ? (r.already ? "déjà active" : "OK") : r.reason}`).join(" · ") || res?.reason || "—";
+          if (hint) hint.textContent = `${g.name} → ${msg}`;
+          toast("Groupe " + g.name, msg, res?.ok ? "info" : "warn");
+        };
+        list.querySelectorAll("[data-gstart]").forEach((b) => (b.onclick = () => groupAction(Number(b.getAttribute("data-gstart")), true)));
+        list.querySelectorAll("[data-gstop]").forEach((b) => (b.onclick = () => groupAction(Number(b.getAttribute("data-gstop")), false)));
+        list.querySelectorAll("[data-gfold]").forEach((b) => {
+          b.onclick = async () => {
+            const g = groups[Number(b.getAttribute("data-gfold"))];
+            g.collapsed = !g.collapsed;
+            renderAitumLaunch();
+            await saveAitumGroups();
+          };
+        });
+        list.querySelectorAll("[data-gdel]").forEach((b) => {
+          b.onclick = async () => {
+            const gi = Number(b.getAttribute("data-gdel"));
+            const [g] = groups.splice(gi, 1);
+            if (g.items.length) {
+              let other = groups.find((x) => x.name === "Sans groupe");
+              if (!other) groups.push((other = { name: "Sans groupe", items: [], collapsed: false }));
+              other.items.push(...g.items);
+            }
+            renderAitumLaunch();
+            await saveAitumGroups();
+          };
+        });
+        list.querySelectorAll("[data-gname]").forEach((el) => {
+          el.ondblclick = () => {
+            const g = groups[Number(el.getAttribute("data-gname"))];
+            el.contentEditable = "true";
+            el.parentElement.draggable = false;
+            el.focus();
+            document.getSelection()?.selectAllChildren(el);
+            const done = async (save) => {
+              el.contentEditable = "false";
+              const name = el.textContent.trim().slice(0, 60);
+              if (save && name) g.name = name;
+              renderAitumLaunch();
+              if (save && name) await saveAitumGroups();
+            };
+            el.onkeydown = (e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                el.onblur = null;
+                done(true);
+              } else if (e.key === "Escape") {
+                el.onblur = null;
+                done(false);
+              }
+            };
+            el.onblur = () => done(true);
+          };
+        });
+
+        // ——— glisser-déposer : sorties entre groupes, groupes entiers ———
+        let drag = null;
+        list.querySelectorAll("[data-item]").forEach((el) => {
+          el.ondragstart = (e) => {
+            e.stopPropagation();
+            drag = { kind: "item", name: el.getAttribute("data-item") };
+            el.classList.add("dragging");
+            e.dataTransfer.effectAllowed = "move";
+            e.dataTransfer.setData("text/plain", drag.name);
+          };
+          el.ondragend = () => el.classList.remove("dragging");
+        });
+        list.querySelectorAll("[data-ghead]").forEach((el) => {
+          el.ondragstart = (e) => {
+            drag = { kind: "group", gi: Number(el.getAttribute("data-ghead")) };
+            el.parentElement.classList.add("dragging");
+            e.dataTransfer.effectAllowed = "move";
+            e.dataTransfer.setData("text/plain", "group");
+          };
+          el.ondragend = () => el.parentElement.classList.remove("dragging");
+        });
+        list.querySelectorAll(".ag-group").forEach((box) => {
+          const gi = Number(box.getAttribute("data-g"));
+          box.ondragover = (e) => {
+            if (!drag) return;
+            e.preventDefault();
+            box.classList.add("drop");
+          };
+          box.ondragleave = () => box.classList.remove("drop");
+          box.ondrop = async (e) => {
+            e.preventDefault();
+            box.classList.remove("drop");
+            if (!drag) return;
+            if (drag.kind === "item") {
+              const target = groups[gi];
+              // position : avant la sortie survolée, sinon à la fin
+              const overItem = e.target.closest?.("[data-item]")?.getAttribute("data-item");
+              groups.forEach((g) => (g.items = g.items.filter((n) => n !== drag.name)));
+              const idx = overItem ? target.items.indexOf(overItem) : -1;
+              if (idx >= 0) target.items.splice(idx, 0, drag.name);
+              else target.items.push(drag.name);
+            } else if (drag.kind === "group" && drag.gi !== gi) {
+              const [moved] = groups.splice(drag.gi, 1);
+              groups.splice(gi, 0, moved);
+            }
+            drag = null;
+            renderAitumLaunch();
+            await saveAitumGroups();
           };
         });
       }
@@ -1408,6 +1578,22 @@
         const lStart = document.getElementById("btnAitumLaunchStart");
         const lStop = document.getElementById("btnAitumLaunchStop");
         document.getElementById("btnAitumLaunchRefresh")?.addEventListener("click", refreshAitumLaunch);
+        document.getElementById("btnAitumGroupAdd")?.addEventListener("click", async () => {
+          if (!aitumLaunchState) await refreshAitumLaunch();
+          const input = document.getElementById("aitumGroupNewName");
+          const name = input?.value || "";
+          if (!name.trim()) {
+            input?.focus();
+            toast("Groupes", "Tape un nom de groupe d'abord", "warn");
+            return;
+          }
+          if (!aitumLaunchState) return;
+          input.value = "";
+          aitumLaunchState.groups = aitumLaunchState.groups || [];
+          aitumLaunchState.groups.unshift({ name: name.trim().slice(0, 60), items: [], collapsed: false });
+          renderAitumLaunch();
+          await saveAitumGroups();
+        });
         lStart?.addEventListener("click", async () => {
           lStart.disabled = true;
           const hint = document.getElementById("aitumLaunchHint");
